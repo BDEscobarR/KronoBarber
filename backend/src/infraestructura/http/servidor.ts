@@ -14,8 +14,12 @@ import { manejadorDeErrores } from "./middlewares/manejadorDeErrores";
  *  4. `manejadorDeErrores` **al final**. Express reconoce un manejador de
  *     errores por sus cuatro parámetros y solo le pasa lo que reventó antes;
  *     si se registra arriba, nunca se entera de nada.
+ *
+ * Recibe **un router por entidad** (barberías, servicios, y los que vengan) y
+ * los monta en el orden en que llegan. Express prueba las rutas en ese orden,
+ * así que dos entidades no deben declarar el mismo patrón de URL.
  */
-export function crearServidor(rutas: Router): Express {
+export function crearServidor(...rutas: readonly Router[]): Express {
   const app = express();
   app.use(express.json());
 
@@ -23,7 +27,10 @@ export function crearServidor(rutas: Router): Express {
     respuesta.json({ estado: "ok" });
   });
 
-  app.use("/api", rutas);
+  for (const router of rutas) {
+    app.use("/api", router);
+  }
+
   app.use(manejadorDeErrores);
   return app;
 }
