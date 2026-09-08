@@ -2,3 +2,6 @@ node_modules/
 dist/
 .env
 .env.local
+
+# Notas de trabajo locales, no forman parte de la entrega
+EntidadesRestantes.md

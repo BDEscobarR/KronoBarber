@@ -14,10 +14,38 @@ const VIOLACION_UNICIDAD = [2627, 2601];
  * Adaptador de salida: implementa el puerto RepositorioBarberias sobre
  * SQL Server. Si mañana se cambia de motor, solo se sustituye esta clase
  * en main.ts; el dominio y los casos de uso no se enteran.
+ *
+ * Dos reglas al tocar este archivo:
+ *  - Todo parámetro entra por `.input(...)`, nunca concatenado en el texto de
+ *    la consulta. Concatenar abre una inyección de SQL.
+ *  - Nada de reglas de negocio aquí. Este adaptador guarda y lee; quien
+ *    decide si algo es válido es el agregado.
  */
 export class RepositorioBarberiasSQLServer implements RepositorioBarberias {
   constructor(private readonly pool: sql.ConnectionPool) {}
 
+  /**
+   * Guarda la barbería exista o no (*upsert*), en un solo viaje a la base.
+   *
+   * Por qué UPDATE y después INSERT, y no al revés: lo normal es actualizar
+   * una barbería que ya existe, así que se intenta primero el caso frecuente.
+   * `@@ROWCOUNT = 0` significa que el UPDATE no encontró la fila, y solo
+   * entonces se inserta.
+   *
+   * `WITH (UPDLOCK, SERIALIZABLE)` es lo que evita la carrera clásica de este
+   * patrón: sin él, dos peticiones simultáneas sobre la misma barbería
+   * inexistente podrían pasar ambas por el UPDATE sin tocar nada y ejecutar
+   * dos INSERT, con el segundo reventando. El bloqueo hace que la segunda
+   * espere a que la primera termine.
+   *
+   * `registrada_en` no se actualiza a propósito: es la fecha de alta y no
+   * cambia nunca, aunque el resto del perfil sí.
+   *
+   * La violación del índice único de correo se traduce a un error del
+   * lenguaje del negocio. Es la última línea de defensa contra el alta
+   * duplicada: el caso de uso ya lo comprueba antes, pero esa comprobación
+   * no sirve si dos altas con el mismo correo llegan a la vez.
+   */
   async guardar(barberia: Barberia): Promise<void> {
     const fila = MapeadorBarberia.aFila(barberia);
 
