@@ -7,6 +7,10 @@ export interface DatosUbicacion {
 
 /**
  * Ubicación de la única sede de la barbería (SUP-03: una barbería = una sede).
+ *
+ * No se guardan coordenadas ni país: el alcance es una sola ciudad por
+ * establecimiento. Si algún día se admiten cadenas con varias sedes, este
+ * objeto de valor deja de pertenecer a `Barberia` y pasa a la sede.
  */
 export class Ubicacion {
   private static readonly LONGITUD_MINIMA_DIRECCION = 5;
