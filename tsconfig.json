@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "types": ["node"],
+
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+
+    "baseUrl": ".",
+    "paths": {
+      "@dominio/*": ["backend/src/dominio/*"],
+      "@aplicacion/*": ["backend/src/aplicacion/*"],
+      "@infraestructura/*": ["backend/src/infraestructura/*"],
+      "@dobles/*": ["backend/tests/dobles/*"]
+    },
+
+    "noEmit": true
+  },
+  "include": ["backend/src/**/*.ts", "backend/tests/**/*.ts"],
+  "exclude": ["node_modules", "dist", "frontend"]
+}

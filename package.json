@@ -1,21 +1,35 @@
 {
   "name": "kronobarber",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "version": "0.1.0",
+  "description": "Plataforma web de gestión y reserva de turnos para barberías",
+  "private": true,
+  "type": "commonjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "tsx watch backend/src/main.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json",
+    "lint": "eslint .",
+    "probar": "node --import tsx --test \"backend/tests/**/*.test.ts\"",
+    "verificar": "npm run typecheck && npm run lint && npm run probar",
+    "verificar:dip": "grep -rn \"from ['\\\"].*infraestructura\" backend/src/dominio/ && echo '❌ DIP roto' || echo '✅ dominio limpio'"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/BDEscobarR/KronoBarber.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
-  "bugs": {
-    "url": "https://github.com/BDEscobarR/KronoBarber/issues"
+  "dependencies": {
+    "express": "^4.21.0",
+    "mssql": "^11.0.1"
   },
-  "homepage": "https://github.com/BDEscobarR/KronoBarber#readme"
+  "devDependencies": {
+    "@eslint/js": "^9.12.0",
+    "@types/express": "^4.17.21",
+    "@types/mssql": "^9.1.5",
+    "@types/node": "^22.7.0",
+    "eslint": "^9.12.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.8.0"
+  }
 }
