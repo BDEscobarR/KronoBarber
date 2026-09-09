@@ -3,6 +3,8 @@ import {
   AccesoNoAutorizado,
   BarberiaNoEncontrada,
   CorreoDeBarberiaYaRegistrado,
+  NombreDeServicioYaRegistrado,
+  ServicioNoEncontrado,
 } from "../../../aplicacion/errores/ErrorAplicacion";
 import { ErrorDeTransicion, ErrorDeValidacion } from "../../../dominio/errores/ErrorDominio";
 
@@ -27,11 +29,15 @@ export function manejadorDeErrores(
     respuesta.status(403).json({ error: error.name, mensaje: error.message });
     return;
   }
-  if (error instanceof BarberiaNoEncontrada) {
+  if (error instanceof BarberiaNoEncontrada || error instanceof ServicioNoEncontrado) {
     respuesta.status(404).json({ error: error.name, mensaje: error.message });
     return;
   }
-  if (error instanceof ErrorDeTransicion || error instanceof CorreoDeBarberiaYaRegistrado) {
+  if (
+    error instanceof ErrorDeTransicion ||
+    error instanceof CorreoDeBarberiaYaRegistrado ||
+    error instanceof NombreDeServicioYaRegistrado
+  ) {
     respuesta.status(409).json({ error: error.name, mensaje: error.message });
     return;
   }

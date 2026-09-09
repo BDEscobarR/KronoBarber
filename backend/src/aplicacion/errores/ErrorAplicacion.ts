@@ -45,3 +45,24 @@ export class AccesoNoAutorizado extends ErrorAplicacion {
     super(`Acceso no autorizado: ${detalle}`);
   }
 }
+
+/** No hay ningún servicio con ese identificador. Se traduce a **HTTP 404**. */
+export class ServicioNoEncontrado extends ErrorAplicacion {
+  constructor(idServicio: string) {
+    super(`No existe un servicio con el identificador «${idServicio}».`);
+  }
+}
+
+/**
+ * La barbería ya tiene un servicio con ese nombre. Se traduce a **HTTP 409**.
+ *
+ * El nombre es la llave natural **dentro de una barbería**: dos barberías
+ * distintas sí pueden ofrecer «Corte clásico». Lo detecta el caso de uso antes
+ * de guardar, y también el adaptador SQL al traducir la violación del índice
+ * único, porque la comprobación previa no basta si dos altas llegan a la vez.
+ */
+export class NombreDeServicioYaRegistrado extends ErrorAplicacion {
+  constructor(nombre: string) {
+    super(`Esta barbería ya tiene un servicio llamado «${nombre}».`);
+  }
+}

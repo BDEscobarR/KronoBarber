@@ -89,6 +89,10 @@ no exista todavía en el dominio.
 Estas son las invariantes del dominio. Cada una debería tener una prueba unitaria con su nombre.
 
 1. **El anticipo es del 20 % exacto**, sin excepciones configurables por barbería en esta versión (RES-03).
+   Como la operación es en pesos enteros, el 20 % casi nunca cae exacto: se **redondea al peso más
+   cercano**, con la mitad hacia arriba. El saldo se obtiene **restando** el anticipo del total, nunca
+   calculando un 80 % aparte, para que anticipo + saldo sume siempre el precio del servicio. Ese
+   redondeo vive en un solo sitio: `Dinero.porcentaje`.
 2. **La reserva no está confirmada hasta que el anticipo se pagó.** Antes de eso el espacio no está
    comprometido de forma definitiva (CAR-10). Una reserva sin pagar **libera el espacio** al vencer su plazo.
 3. **El saldo del 80 % no se procesa en la plataforma** (RES-04, SUP-04). No hay caja, ni conciliación,
@@ -211,8 +215,8 @@ El dominio **no importa** infraestructura, ni bibliotecas externas, ni el framew
 
 El servidor vive en `backend/` y el cliente en `frontend/`; el hexágono es `backend/src/`.
 Muchos de estos archivos aún no existen: el árbol fija **dónde** irá cada uno cuando entre, para
-que ubicar un concepto nuevo no sea una decisión que se tome dos veces. A hoy solo está construida
-la entidad **Barbería** de punta a punta.
+que ubicar un concepto nuevo no sea una decisión que se tome dos veces. A hoy están construidas de
+punta a punta las entidades **Barbería** y **Servicio**.
 
 ```
 backend/
@@ -220,7 +224,7 @@ backend/
 │   ├── dominio/
 │   │   ├── modelo/
 │   │   │   ├── Barberia.ts          EstadoBarberia.ts (pendiente_verificacion · habilitada · suspendida)
-│   │   │   ├── Servicio.ts          Catalogo.ts
+│   │   │   ├── Servicio.ts          EstadoServicio.ts (activo · inactivo)
 │   │   │   ├── Barbero.ts           Jornada.ts · Ausencia.ts
 │   │   │   ├── Cliente.ts
 │   │   │   ├── Turno.ts             EstadoTurno.ts
@@ -229,7 +233,8 @@ backend/
 │   │   │   └── valores/             IdBarberia.ts · NombreBarberia.ts · DescripcionBarberia.ts
 │   │   │                            Ubicacion.ts · MediosContacto.ts
 │   │   │                            CorreoElectronico.ts · Telefono.ts
-│   │   │                            Dinero.ts · IntervaloTiempo.ts · Duracion.ts
+│   │   │                            IdServicio.ts · NombreServicio.ts · DescripcionServicio.ts
+│   │   │                            Dinero.ts · Duracion.ts · IntervaloTiempo.ts
 │   │   │
 │   │   ├── servicios/
 │   │   │   ├── CalculoDisponibilidad.ts     horario ∩ jornada − ausencias − turnos
@@ -251,7 +256,9 @@ backend/
 │   │   │   │                ActualizarPerfilBarberia.ts · ObtenerBarberia.ts
 │   │   │   │                ListarBarberiasHabilitadas.ts · ListarBarberiasPorEstado.ts
 │   │   │   │                ConfigurarHorarioAtencion.ts
-│   │   │   ├── catalogo/    CrearServicio.ts · ActualizarServicio.ts · DesactivarServicio.ts
+│   │   │   ├── catalogo/    CrearServicio.ts · ActualizarServicio.ts · ObtenerServicio.ts
+│   │   │   │                ActivarServicio.ts · DesactivarServicio.ts
+│   │   │   │                ListarCatalogoDeBarberia.ts · ListarCatalogoPublico.ts
 │   │   │   ├── personal/    VincularBarbero.ts · DefinirJornada.ts
 │   │   │   │                SolicitarAusencia.ts · AprobarAusencia.ts
 │   │   │   ├── reserva/     ConsultarEspaciosLibres.ts · ReservarTurno.ts
@@ -259,14 +266,17 @@ backend/
 │   │   │   ├── agenda/      ConsultarAgendaGeneral.ts · ConsultarAgendaBarbero.ts
 │   │   │   │                CerrarTurno.ts · MarcarInasistencia.ts
 │   │   │   └── LiberarReservasVencidas.ts   ← lo ejecuta el planificador
-│   │   ├── dto/            BarberiaDto.ts    lo que sale de la aplicación hacia el borde
+│   │   ├── dto/            BarberiaDto.ts · ServicioDto.ts   lo que sale hacia el borde
 │   │   └── errores/        ErrorAplicacion.ts   fallos de orquestación, no reglas del negocio
 │   │
 │   ├── infraestructura/
 │   │   ├── persistencia/   conexion.ts
 │   │   │                   repositorios/  RepositorioBarberiasSQLServer.ts
-│   │   │                   mapeadores/    MapeadorBarberia.ts   (fila ⇄ agregado)
+│   │   │                                  RepositorioServiciosSQLServer.ts
+│   │   │                   mapeadores/    MapeadorBarberia.ts · MapeadorServicio.ts
+│   │   │                                  (fila ⇄ agregado)
 │   │   │                   migraciones/   esquema.ts · aplicarEsquema.ts
+│   │   ├── configuracion/  cargarEntorno.ts   (lee .env antes que nadie toque process.env)
 │   │   ├── pagos/          PasarelaPagosSandbox.ts · SimuladorPagos.ts   (mismo contrato)
 │   │   ├── notificaciones/ NotificadorCorreo.ts · NotificadorBitacora.ts
 │   │   ├── http/           servidor.ts · controladores/ · rutas/ · middlewares/ · dto/
@@ -284,6 +294,13 @@ backend/
     └── dobles/             RelojFijo.ts · GeneradorIdSecuencial.ts
                             RepositorioBarberiasEnMemoria.ts · PerfilBarberiaDePrueba.ts
 ```
+
+**`Catalogo` no es una clase, y es deliberado.** El §3 lo define como *los servicios vigentes de una
+barbería*, pero eso es una **consulta**, no un agregado con estado propio: no tiene invariantes que
+proteger más allá de las que ya protege cada `Servicio`. Modelarlo como clase obligaría a cargar
+todos los servicios de una barbería en memoria para responder un listado. Vive, por tanto, en los
+casos de uso `ListarCatalogoDeBarberia` (gestión, incluye inactivos) y `ListarCatalogoPublico`
+(vitrina, solo activos y solo si la barbería está habilitada).
 
 **Configuración en la raíz del repositorio**: `package.json` (el del servidor), `tsconfig.json`
 (tipado estricto y alias, incluye pruebas), `tsconfig.build.json` (solo compila `backend/src` a
@@ -338,7 +355,9 @@ frontend/
 └── tests/
 ```
 
-**Endpoints disponibles hoy** (`/api`), todos de la entidad Barbería:
+**Endpoints disponibles hoy** (`/api`).
+
+Barbería:
 
 | Método y ruta | Quién | Qué hace |
 |---|---|---|
@@ -349,6 +368,18 @@ frontend/
 | `GET /operador/barberias?estado=` | Operador | Bandeja por estado |
 | `POST /operador/barberias/:id/habilitacion` | Operador | Habilita |
 | `POST /operador/barberias/:id/suspension` | Operador | Suspende, con motivo obligatorio |
+
+Servicio:
+
+| Método y ruta | Quién | Qué hace |
+|---|---|---|
+| `GET /barberias/:idBarberia/catalogo` | Cliente | Vitrina: solo servicios activos de una barbería habilitada |
+| `GET /barberias/:idBarberia/servicios` | Administrador | Catálogo de gestión: incluye los inactivos |
+| `POST /barberias/:idBarberia/servicios` | Administrador | Crea un servicio con precio y duración |
+| `GET /servicios/:id` | Administrador | Detalle |
+| `PUT /servicios/:id` | Administrador | Actualiza precio, duración o descripción |
+| `POST /servicios/:id/activacion` | Administrador | Vuelve a publicarlo |
+| `POST /servicios/:id/desactivacion` | Administrador | Lo retira del catálogo **sin borrarlo** |
 
 Las guardas por rol (CAR-17) todavía no existen: hoy el solicitante se declara en el cuerpo de la
 petición. Entran con el caso de uso de identidad y ahí dejan de ser un dato que el cliente elige.
