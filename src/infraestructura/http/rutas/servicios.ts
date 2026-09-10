@@ -17,7 +17,14 @@ import {
 } from '../../../aplicacion/casos-uso/CrearServicio'
 import { BarberiaNoEncontrada } from '../../../aplicacion/casos-uso/HabilitarBarberia'
 
-/** Validación de frontera: lo que entra por HTTP es `unknown` hasta que se prueba lo contrario. */
+/**
+ * Validación de frontera de un servicio nuevo: lo que entra por HTTP es `unknown` hasta que se
+ * prueba lo contrario. Precio y duración se validan con las reglas del dominio.
+ *
+ * @param barberiaId Barbería tomada de la URL.
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `CrearServicio`, o el mensaje de error para responder un 400.
+ */
 function validarServicio(barberiaId: string, cuerpo: unknown): CreacionServicioDTO | string {
   const d = (cuerpo ?? {}) as Record<string, unknown>
   const descripcion: unknown = d['descripcion'] ?? ''
@@ -40,12 +47,27 @@ function validarServicio(barberiaId: string, cuerpo: unknown): CreacionServicioD
   }
 }
 
+/** Lo que necesitan las rutas del catálogo; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasServicios {
+  /** Caso de uso del alta de servicios (CAR-03). */
   crearServicio: CrearServicio
+  /** Acceso a las barberías, para comprobar que la vitrina es visible (RES-11). */
   barberias: BarberiaDAO
+  /** Acceso directo al catálogo para la consulta pública. */
   servicios: ServicioDAO
 }
 
+/**
+ * Rutas del catálogo de servicios, montadas en `/api/barberias`. Los servicios cuelgan de una
+ * barbería en la URL:
+ *
+ * - `POST /:barberiaId/servicios`: crea un servicio. Responde 201, 400, 404 o 409.
+ * - `GET /:barberiaId/servicios`: vitrina con los servicios activos de una barbería habilitada.
+ *   Responde 200 o 404.
+ *
+ * @param deps Caso de uso y DAO que usan los handlers.
+ * @returns El router de Express.
+ */
 export function rutasServicios(deps: DependenciasServicios): Router {
   const rutas = Router()
 

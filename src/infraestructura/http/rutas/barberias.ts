@@ -12,15 +12,30 @@ import {
   type RegistroBarberiaDTO,
 } from '../../../aplicacion/casos-uso/RegistrarBarberia'
 
+/** Forma mínima de un correo: algo@algo.algo, sin espacios. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+/** Teléfono ya normalizado: entre 7 y 15 dígitos, con `+` inicial opcional. */
 const TELEFONO = /^\+?\d{7,15}$/
 
-/** ¿Es texto y, sin espacios en los extremos, mide entre `minimo` y `maximo`? */
+/**
+ * ¿Es texto y, sin espacios en los extremos, mide entre `minimo` y `maximo` caracteres?
+ *
+ * @param valor Dato de origen desconocido.
+ * @param minimo Longitud mínima admitida.
+ * @param maximo Longitud máxima admitida; coincide con el tamaño de la columna.
+ * @returns `true` si `valor` es un texto de longitud válida.
+ */
 function textoEntre(valor: unknown, minimo: number, maximo: number): valor is string {
   return typeof valor === 'string' && valor.trim().length >= minimo && valor.trim().length <= maximo
 }
 
-/** Validación de frontera: lo que entra por HTTP es `unknown` hasta que se prueba lo contrario. */
+/**
+ * Validación de frontera del registro: lo que entra por HTTP es `unknown` hasta que se prueba lo
+ * contrario. Los límites coinciden con los tamaños de columna de `schema.prisma`.
+ *
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `RegistrarBarberia`, o el mensaje de error para responder un 400.
+ */
 function validarRegistro(cuerpo: unknown): RegistroBarberiaDTO | string {
   const d = (cuerpo ?? {}) as Record<string, unknown>
   const descripcion: unknown = d['descripcion'] ?? ''
@@ -41,12 +56,30 @@ function validarRegistro(cuerpo: unknown): RegistroBarberiaDTO | string {
   }
 }
 
+/** Lo que necesitan las rutas de barberías; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasBarberias {
+  /** Caso de uso del registro (CAR-01). */
   registrarBarberia: RegistrarBarberia
+  /** Caso de uso de la habilitación (CAR-02). */
   habilitarBarberia: HabilitarBarberia
+  /** Acceso directo para las consultas que no tienen reglas propias. */
   barberias: BarberiaDAO
 }
 
+/**
+ * Rutas de barberías, montadas en `/api/barberias`:
+ *
+ * - `POST /`: registra una barbería. Responde 201, 400 o 409.
+ * - `GET /?ciudad=`: catálogo público, solo habilitadas. Responde 200.
+ * - `GET /:id`: detalle en cualquier estado. Responde 200 o 404.
+ * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
+ *
+ * Cada handler valida, llama al caso de uso, responde con el DTO y traduce los errores de negocio
+ * a códigos HTTP; el resto lo delega a `next(error)`.
+ *
+ * @param deps Casos de uso y DAO que usan los handlers.
+ * @returns El router de Express.
+ */
 export function rutasBarberias(deps: DependenciasBarberias): Router {
   const rutas = Router()
 

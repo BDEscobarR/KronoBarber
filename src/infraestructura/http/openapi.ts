@@ -9,12 +9,14 @@ import {
 // Contrato OpenAPI como objeto TS: los enums y límites se importan del dominio,
 // así la documentación no puede quedar desalineada con las reglas.
 
+/** Esquema del cuerpo de toda respuesta de error: `{ error: string }`. */
 const error = {
   type: 'object',
   properties: { error: { type: 'string', example: 'correo inválido' } },
   required: ['error'],
 }
 
+/** Esquema de `BarberiaDTO`. */
 const barberia = {
   type: 'object',
   description:
@@ -33,6 +35,7 @@ const barberia = {
   required: ['id', 'nombre', 'descripcion', 'direccion', 'ciudad', 'telefono', 'correo', 'estado'],
 }
 
+/** Esquema de `RegistroBarberiaDTO`; los límites coinciden con la validación de la ruta. */
 const registroBarberia = {
   type: 'object',
   description: 'Datos del registro (`RegistroBarberiaDTO`). La barbería nace en PENDIENTE_VERIFICACION.',
@@ -51,6 +54,7 @@ const registroBarberia = {
   required: ['nombre', 'direccion', 'ciudad', 'telefono', 'correo'],
 }
 
+/** Esquema de `ServicioDTO`. */
 const servicio = {
   type: 'object',
   description: 'Servicio del catálogo tal como viaja por HTTP (`ServicioDTO`).',
@@ -66,6 +70,7 @@ const servicio = {
   required: ['id', 'barberiaId', 'nombre', 'descripcion', 'precio', 'duracionMinutos', 'activo'],
 }
 
+/** Esquema de `CreacionServicioDTO`; los límites se importan de las reglas del dominio. */
 const creacionServicio = {
   type: 'object',
   description: 'Datos de un servicio nuevo (`CreacionServicioDTO`). Nace activo.',
@@ -90,11 +95,34 @@ const creacionServicio = {
   required: ['nombre', 'precio', 'duracionMinutos'],
 }
 
+/**
+ * Contenido JSON que referencia un esquema de `components.schemas`.
+ *
+ * @param esquema Nombre del esquema, igual al del DTO.
+ */
 const json = (esquema: string) => ({ 'application/json': { schema: { $ref: `#/components/schemas/${esquema}` } } })
+
+/**
+ * Contenido JSON con una lista de elementos de un esquema.
+ *
+ * @param esquema Nombre del esquema de cada elemento.
+ */
 const lista = (esquema: string) => ({
   'application/json': { schema: { type: 'array', items: { $ref: `#/components/schemas/${esquema}` } } },
 })
+
+/**
+ * Respuesta de error con el cuerpo `{ error }`.
+ *
+ * @param descripcion Cuándo se produce, tal como se muestra en Swagger.
+ */
 const fallo = (descripcion: string) => ({ description: descripcion, content: json('Error') })
+
+/**
+ * Parámetro de ruta obligatorio con un UUID.
+ *
+ * @param nombre Nombre del parámetro en la URL, sin los dos puntos.
+ */
 const parametroId = (nombre: string) => ({
   name: nombre,
   in: 'path',
@@ -102,10 +130,15 @@ const parametroId = (nombre: string) => ({
   schema: { type: 'string', format: 'uuid' },
 })
 
+/**
+ * Contrato OpenAPI 3.0.3 de la API. Se sirve en `/api/openapi.json` y alimenta Swagger UI en
+ * `/api/docs`. Los nombres de los esquemas son los mismos de los DTO del código, así lo que se
+ * lee en la documentación se busca por el mismo identificador.
+ */
 export const openapi = {
   openapi: '3.0.3',
   info: {
-    title: 'KronoBarber · API',
+    title: 'KronoBarber API',
     version: '0.1.0',
     description:
       'Plataforma multiempresa de gestión y reserva de turnos para barberías. ' +

@@ -2,7 +2,8 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
-// La regla que sostiene todo: infraestructura ──▶ aplicacion ──▶ dominio.
+// La regla que sostiene todo: infraestructura depende de aplicacion, y aplicacion de
+// dominio; nunca al revés.
 // Se escribe como prueba, y no como un `grep` en package.json, para que corra igual
 // en Windows, Mac y CI (npm ejecuta los scripts con cmd.exe en Windows).
 

@@ -217,8 +217,8 @@ y sin red.
 | Elemento | Valor |
 |---|---|
 | Lenguaje | **TypeScript** estricto, más `noUncheckedIndexedAccess` y `exactOptionalPropertyTypes` |
-| Runtime | **Node.js ≥ 20.12** (probado en 24.19). `"type": "commonjs"` + `"module": "nodenext"`: los imports no llevan extensión |
-| HTTP | **Express 5** · documentación interactiva con **Swagger UI** en `/api/docs` |
+| Runtime | **Node.js 20.12 o superior** (probado en 24.19). `"type": "commonjs"` + `"module": "nodenext"`: los imports no llevan extensión |
+| HTTP | **Express 5**, con documentación interactiva en **Swagger UI** (`/api/docs`) |
 | Base de datos | **SQL Server 2022** (la edición Express sirve) instalado en la máquina. **Sin Docker** |
 | ORM | **Prisma 7** con el adaptador `@prisma/adapter-mssql` |
 | Pruebas | **Vitest** |
@@ -240,20 +240,20 @@ KronoBarber/
 │   └── migrations/                    SQL generado por `prisma migrate dev` (se versiona)
 │
 ├── src/
-│   ├── dominio/                       ⬅ EL NEGOCIO. No importa nada de afuera.
+│   ├── dominio/                       el negocio: no importa nada de afuera
 │   │   ├── modelo/
 │   │   │   ├── Barberia.ts            entidad + EstadoBarberia + BarberiaDTO + aBarberiaDTO()
 │   │   │   └── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
 │   │   └── puertos/
-│   │       └── index.ts               BarberiaDAO · ServicioDAO
+│   │       └── index.ts               BarberiaDAO y ServicioDAO
 │   │
-│   ├── aplicacion/                    ⬅ ORQUESTACIÓN de las reglas.
+│   ├── aplicacion/                    orquestación de las reglas
 │   │   └── casos-uso/
 │   │       ├── RegistrarBarberia.ts   caso de uso + RegistroBarberiaDTO + CorreoDeBarberiaYaRegistrado
 │   │       ├── HabilitarBarberia.ts   caso de uso + BarberiaNoEncontrada + BarberiaYaHabilitada
 │   │       └── CrearServicio.ts       caso de uso + CreacionServicioDTO + ServicioYaExiste
 │   │
-│   ├── infraestructura/               ⬅ LO REEMPLAZABLE. Aquí vive la tecnología.
+│   ├── infraestructura/               lo reemplazable: aquí vive la tecnología
 │   │   ├── persistencia/
 │   │   │   ├── prisma.ts              PrismaClient con el adaptador de SQL Server
 │   │   │   ├── BarberiaDAOPrisma.ts   adaptador: implementa BarberiaDAO con Prisma
@@ -266,11 +266,11 @@ KronoBarber/
 │   │           ├── barberias.ts       validación de frontera + handlers de barberías
 │   │           └── servicios.ts       validación de frontera + handlers del catálogo
 │   │
-│   └── main.ts                        ⬅ RAÍZ DE COMPOSICIÓN. El único con `new`.
+│   └── main.ts                        raíz de composición: el único con `new`
 │
 ├── tests/
 │   ├── unidad/                        casos de uso y reglas, sin BD ni red, en milisegundos
-│   ├── dobles/                        BarberiaDAOEnMemoria · ServicioDAOEnMemoria
+│   ├── dobles/                        BarberiaDAOEnMemoria y ServicioDAOEnMemoria
 │   └── arquitectura.test.ts           verifica la regla de dependencias
 │
 ├── .env.example                       plantilla de variables (sí se versiona)
@@ -293,7 +293,7 @@ Equivalencias para quien venga de MVC:
 | `middlewares/` | Funciones que devuelven `RequestHandler` | Junto a la ruta que las usa |
 | `dtos/` | Sin carpeta: cada DTO junto a quien lo usa | ver abajo |
 | `config/` + inyección de dependencias | Raíz de composición | `src/main.ts` |
-| `utils/` / `helpers/` | **Prohibido por convención** | — |
+| `utils/` / `helpers/` | **Prohibido por convención** | No aplica |
 
 ### Cómo está hecha cada entidad
 
@@ -307,7 +307,7 @@ Equivalencias para quien venga de MVC:
 Entre las dos está la función `aDominio()` del adaptador DAO. Esa separación es lo que permite cambiar de
 ORM sin tocar el dominio. Cada archivo de `modelo/` tiene las mismas cinco piezas:
 
-1. Los estados como **array `as const` + tipo derivado** (`ESTADOS_BARBERIA` → `EstadoBarberia`), no `enum`
+1. Los estados como **array `as const` + tipo derivado** (de `ESTADOS_BARBERIA` se deriva `EstadoBarberia`), no `enum`
    de TypeScript. El mismo array valida datos y alimenta el `enum` de OpenAPI.
 2. La **entidad sin sufijo** (`Barberia`, `Servicio`).
 3. El tipo para creación: `BarberiaNueva = Omit<Barberia, 'id'>`. El id lo asigna la base de datos.
@@ -324,7 +324,7 @@ barbería*, pero eso es una **consulta** (`ServicioDAO.activosDe`), no una entid
 | Sufijo | Significa | Ejemplos |
 |---|---|---|
 | `...DTO` | Estructura que **cruza una frontera**. Solo campos. | `BarberiaDTO`, `RegistroBarberiaDTO`, `CreacionServicioDTO` |
-| `...DAO` | Contrato de **acceso a datos**, en vocabulario del negocio (`guardar`, `porId`, `activosDe`). | `BarberiaDAO` (puerto) · `BarberiaDAOPrisma`, `BarberiaDAOEnMemoria` (implementaciones) |
+| `...DAO` | Contrato de **acceso a datos**, en vocabulario del negocio (`guardar`, `porId`, `activosDe`). | `BarberiaDAO` (puerto); `BarberiaDAOPrisma` y `BarberiaDAOEnMemoria` (implementaciones) |
 | sin sufijo | Entidades y puertos de comportamiento. | `Barberia`, `Servicio`, `EstadoBarberia` |
 
 Un DTO vive **junto al código que lo usa**: el de salida de una entidad, con la entidad; el de entrada de
@@ -339,7 +339,7 @@ separadores) es del caso de uso, no de HTTP.
 
 Cada archivo de `rutas/` tiene cuatro bloques: validación de frontera (`validarRegistro(cuerpo: unknown):
 RegistroBarberiaDTO | string`, donde el string es el mensaje del 400), la interfaz `Dependencias...`, los
-middlewares si hacen falta y la fábrica del `Router`. Cada handler hace siempre lo mismo: validar → `400`;
+middlewares si hacen falta y la fábrica del `Router`. Cada handler hace siempre lo mismo: validar (si falla, `400`);
 llamar al caso de uso; responder con el DTO; traducir errores de negocio a HTTP (`409`, `404`) y delegar el
 resto a `next(error)`. **El dominio no sabe qué es un 409.**
 
@@ -353,7 +353,7 @@ La configuración entra por variables de entorno, nunca por el código (RES-13):
 | `BD_SERVIDOR` | Host de SQL Server | Sí |
 | `BD_PUERTO` | Puerto TCP | No (1433) |
 | `BD_NOMBRE` | Base de datos de la aplicación | Sí |
-| `BD_USUARIO` · `BD_CONTRASENA` | Login de SQL Server | Sí |
+| `BD_USUARIO` y `BD_CONTRASENA` | Login de SQL Server | Sí |
 | `BD_CIFRADO` | `false` desactiva el cifrado de la conexión | No (`true`) |
 | `BD_CONFIAR_CERTIFICADO` | `true` acepta el certificado autofirmado de un SQL Server local | No (`false`) |
 | `PUERTO` | Puerto HTTP | No (3000) |
@@ -362,7 +362,7 @@ Las mismas variables sirven a los dos consumidores:
 
 - **En ejecución**, `src/infraestructura/persistencia/prisma.ts` arma el objeto de configuración de
   `PrismaMssql`, que no acepta URL, y **falla temprano** con un mensaje que dice qué hacer si falta alguna.
-- **Para el CLI** (`migrate`, `studio`), `prisma.config.ts` compone con ellas la URL `sqlserver://…` y la
+- **Para el CLI** (`migrate`, `studio`), `prisma.config.ts` compone con ellas la URL `sqlserver://...` y la
   de la **base sombra** `<BD_NOMBRE>_sombra`.
 
 Diferencias con PostgreSQL que condicionan el esquema:
@@ -372,7 +372,7 @@ Diferencias con PostgreSQL que condicionan el esquema:
 | `enum` | **No soportado** | `estado` es `String`. La lista válida vive en el dominio y `BarberiaDAOPrisma` la comprueba al leer |
 | `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo no se puede borrar |
 | Base sombra de `migrate dev` | Crearla automáticamente exige ser administrador del servidor | Se crea una vez a mano (`KronoBarber_sombra`) y `prisma.config.ts` la declara |
-| Mayúsculas | La intercalación por defecto no las distingue | «Corte clásico» y «CORTE CLÁSICO» chocan en el `@@unique([barberiaId, nombre])`, que es lo que se quiere |
+| Mayúsculas | La intercalación por defecto no las distingue | "Corte clásico" y "CORTE CLÁSICO" chocan en el `@@unique([barberiaId, nombre])`, que es lo que se quiere |
 
 ### Puesta en marcha
 
@@ -401,9 +401,9 @@ GO
 
 ```bash
 npm install                      # el postinstall genera el cliente de Prisma
-cp .env.example .env             # PowerShell: Copy-Item .env.example .env  — y poner la contraseña
+cp .env.example .env             # en PowerShell: Copy-Item .env.example .env; luego poner la contraseña
 npm run db:migrate               # aplica las migraciones (crea las tablas Barberia y Servicio)
-npm run dev                      # KronoBarber escuchando en http://localhost:3000/api · docs en /api/docs
+npm run dev                      # KronoBarber escuchando en http://localhost:3000/api (documentación en /api/docs)
 ```
 
 > Instala las versiones del `package.json` tal cual. Hoy la etiqueta `latest` de `prisma` en npm apunta a
@@ -431,13 +431,13 @@ descriptivo). Las migraciones **se versionan siempre** y no se editan a mano.
 
 | Método | Ruta | Qué hace | Errores |
 |---|---|---|---|
-| `GET` | `/salud` | Verificación de vida, sin tocar la base de datos | — |
-| `GET` | `/docs` · `/openapi.json` | Swagger UI · contrato OpenAPI | — |
-| `POST` | `/barberias` | `RegistroBarberiaDTO` → `201` con `BarberiaDTO` en `PENDIENTE_VERIFICACION` (CAR-01) | `400` · `409` correo repetido |
-| `GET` | `/barberias?ciudad=` | Catálogo público: **solo habilitadas** (CAR-07, RES-11) | — |
+| `GET` | `/salud` | Verificación de vida, sin tocar la base de datos | Ninguno |
+| `GET` | `/docs` y `/openapi.json` | Swagger UI y contrato OpenAPI | Ninguno |
+| `POST` | `/barberias` | Recibe `RegistroBarberiaDTO` y responde `201` con `BarberiaDTO` en `PENDIENTE_VERIFICACION` (CAR-01) | `400`; `409` correo repetido |
+| `GET` | `/barberias?ciudad=` | Catálogo público: **solo habilitadas** (CAR-07, RES-11) | Ninguno |
 | `GET` | `/barberias/:id` | Detalle, en cualquier estado | `404` |
-| `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404` · `409` ya habilitada |
-| `POST` | `/barberias/:barberiaId/servicios` | `CreacionServicioDTO` → `201` con `ServicioDTO`, activo (CAR-03) | `400` · `404` · `409` nombre repetido |
+| `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404`; `409` ya habilitada |
+| `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
 | `GET` | `/barberias/:barberiaId/servicios` | Vitrina: servicios activos, **solo si la barbería está habilitada** | `404` |
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. Entran con la
@@ -492,11 +492,11 @@ nombres que aparecen en `/api/docs`).
 
 | Patrón | Dónde | Estado |
 |---|---|---|
-| **DAO / Repository** | `dominio/puertos`: `guardar`, `porId`, `activosDe`; nunca SQL | ✅ hoy |
-| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | ✅ hoy (persistencia) |
+| **DAO / Repository** | `dominio/puertos`: `guardar`, `porId`, `activosDe`; nunca SQL | Implementado |
+| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia) |
 | **Strategy** | `PoliticaCancelacion`, `PoliticaAsignacionEspacios` | con la reserva |
 | **State** | `Turno` + `EstadoTurno`: las transiciones inválidas se vuelven imposibles | con el turno |
-| **Observer** | Eventos del turno → notificaciones e historial | con la reserva |
+| **Observer** | Eventos del turno que disparan notificaciones e historial | con la reserva |
 
 ### Cómo se hace cumplir la regla
 
