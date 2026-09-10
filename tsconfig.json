@@ -1,31 +1,32 @@
 {
+  // Visit https://aka.ms/tsconfig to read more about this file
   "compilerOptions": {
-    "target": "ES2022",
-    "lib": ["ES2022"],
-    "module": "node16",
-    "moduleResolution": "node16",
+    // File Layout
+    "rootDir": ".",
+    "outDir": "./dist",
+
+    // Environment Settings
+    "module": "nodenext",
+    "target": "esnext",
+    "lib": ["esnext"],
     "types": ["node"],
 
-    "strict": true,
-    "noImplicitOverride": true,
+    // Other Outputs
+    "sourceMap": true,
+    "declaration": true,
+    "declarationMap": true,
+
+    // Stricter Typechecking Options
     "noUncheckedIndexedAccess": true,
-    "noFallthroughCasesInSwitch": true,
-    "noPropertyAccessFromIndexSignature": false,
-    "forceConsistentCasingInFileNames": true,
+    "exactOptionalPropertyTypes": true,
+
+    // Recommended Options
+    "strict": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "resolveJsonModule": true,
-
-    "baseUrl": ".",
-    "paths": {
-      "@dominio/*": ["backend/src/dominio/*"],
-      "@aplicacion/*": ["backend/src/aplicacion/*"],
-      "@infraestructura/*": ["backend/src/infraestructura/*"],
-      "@dobles/*": ["backend/tests/dobles/*"]
-    },
-
-    "noEmit": true
+    "skipLibCheck": true
   },
-  "include": ["backend/src/**/*.ts", "backend/tests/**/*.ts"],
-  "exclude": ["node_modules", "dist", "frontend"]
+  "include": ["src", "tests"]
 }
