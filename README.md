@@ -92,7 +92,8 @@ Estas son las invariantes del dominio. Cada una debería tener una prueba unitar
    Como la operación es en pesos enteros, el 20 % casi nunca cae exacto: se **redondea al peso más
    cercano**, con la mitad hacia arriba. El saldo se obtiene **restando** el anticipo del total, nunca
    calculando un 80 % aparte, para que anticipo + saldo sume siempre el precio del servicio. Ese
-   redondeo vive en un solo sitio: `Dinero.porcentaje`.
+   redondeo vivirá en **una sola función pura del dominio**, que entra con la historia de reserva
+   (CAR-10). Hoy el precio del servicio ya se guarda en pesos enteros y se valida con `esPrecioValido`.
 2. **La reserva no está confirmada hasta que el anticipo se pagó.** Antes de eso el espacio no está
    comprometido de forma definitiva (CAR-10). Una reserva sin pagar **libera el espacio** al vencer su plazo.
 3. **El saldo del 80 % no se procesa en la plataforma** (RES-04, SUP-04). No hay caja, ni conciliación,
@@ -200,7 +201,7 @@ DEP-03 disponibilidad del sandbox de la pasarela (respaldo: simulador propio que
 
 ## 8. Arquitectura
 
-**Hexagonal por capas (opción C)**, con una única regla de dependencia:
+**Hexagonal (puertos y adaptadores)**, con una única regla de dependencia:
 
 ```
 infraestructura ──▶ aplicacion ──▶ dominio
@@ -208,181 +209,269 @@ infraestructura ──▶ aplicacion ──▶ dominio
       (la infraestructura implementa los puertos que el dominio declara)
 ```
 
-El dominio **no importa** infraestructura, ni bibliotecas externas, ni el framework HTTP, ni el ORM, ni
-`Date.now()`. Se prueba sin base de datos, sin red y sin pasarela.
+El dominio **no importa** infraestructura, ni el framework HTTP, ni el ORM. Se prueba sin base de datos
+y sin red.
+
+### Stack
+
+| Elemento | Valor |
+|---|---|
+| Lenguaje | **TypeScript** estricto, más `noUncheckedIndexedAccess` y `exactOptionalPropertyTypes` |
+| Runtime | **Node.js ≥ 20.12** (probado en 24.19). `"type": "commonjs"` + `"module": "nodenext"`: los imports no llevan extensión |
+| HTTP | **Express 5** · documentación interactiva con **Swagger UI** en `/api/docs` |
+| Base de datos | **SQL Server 2022** (la edición Express sirve) instalado en la máquina. **Sin Docker** |
+| ORM | **Prisma 7** con el adaptador `@prisma/adapter-mssql` |
+| Pruebas | **Vitest** |
+
+Lo que deliberadamente **no** se usa: `zod`/`class-validator` (la validación se escribe a mano en la
+frontera HTTP), `dotenv` (se usa `--env-file` de Node), `eslint` (la regla de dependencias la verifica una
+prueba), decoradores, contenedores de inyección de dependencias.
 
 ### Estructura de carpetas
 
-El servidor vive en `backend/` y el cliente en `frontend/`; el hexágono es `backend/src/`.
-Muchos de estos archivos aún no existen: el árbol fija **dónde** irá cada uno cuando entre, para
-que ubicar un concepto nuevo no sea una decisión que se tome dos veces. A hoy están construidas de
-punta a punta las entidades **Barbería** y **Servicio**.
+El repositorio es solo el servidor: `prisma/`, `src/` y `tests/` en la
+raíz. El árbol refleja lo que **existe hoy**: no se crean carpetas vacías por adelantado, una capa entra
+cuando una historia de usuario la necesita.
 
 ```
-backend/
-├── src/
-│   ├── dominio/
-│   │   ├── modelo/
-│   │   │   ├── Barberia.ts          EstadoBarberia.ts (pendiente_verificacion · habilitada · suspendida)
-│   │   │   ├── Servicio.ts          EstadoServicio.ts (activo · inactivo)
-│   │   │   ├── Barbero.ts           Jornada.ts · Ausencia.ts
-│   │   │   ├── Cliente.ts
-│   │   │   ├── Turno.ts             EstadoTurno.ts
-│   │   │   ├── Reserva.ts           Anticipo.ts · Comprobante.ts
-│   │   │   ├── HorarioAtencion.ts
-│   │   │   └── valores/             IdBarberia.ts · NombreBarberia.ts · DescripcionBarberia.ts
-│   │   │                            Ubicacion.ts · MediosContacto.ts
-│   │   │                            CorreoElectronico.ts · Telefono.ts
-│   │   │                            IdServicio.ts · NombreServicio.ts · DescripcionServicio.ts
-│   │   │                            Dinero.ts · Duracion.ts · IntervaloTiempo.ts
-│   │   │
-│   │   ├── servicios/
-│   │   │   ├── CalculoDisponibilidad.ts     horario ∩ jornada − ausencias − turnos
-│   │   │   ├── CalculoAnticipo.ts           el 20 %, en un solo lugar
-│   │   │   ├── PoliticaCancelacion.ts       ← Strategy
-│   │   │   ├── PoliticaAsignacionEspacios.ts
-│   │   │   └── DeteccionSolapamiento.ts
-│   │   │
-│   │   ├── errores/     ErrorDominio.ts   ErrorDeValidacion · ErrorDeTransicion
-│   │   │
-│   │   └── puertos/
-│   │       └── index.ts     RepositorioBarberias · RepositorioServicios · RepositorioBarberos
-│   │                        RepositorioTurnos · RepositorioClientes
-│   │                        PasarelaPagos · ServicioNotificacion · Reloj · GeneradorId
-│   │
-│   ├── aplicacion/
-│   │   ├── casos-uso/
-│   │   │   ├── barberia/    RegistrarBarberia.ts · HabilitarBarberia.ts · SuspenderBarberia.ts
-│   │   │   │                ActualizarPerfilBarberia.ts · ObtenerBarberia.ts
-│   │   │   │                ListarBarberiasHabilitadas.ts · ListarBarberiasPorEstado.ts
-│   │   │   │                ConfigurarHorarioAtencion.ts
-│   │   │   ├── catalogo/    CrearServicio.ts · ActualizarServicio.ts · ObtenerServicio.ts
-│   │   │   │                ActivarServicio.ts · DesactivarServicio.ts
-│   │   │   │                ListarCatalogoDeBarberia.ts · ListarCatalogoPublico.ts
-│   │   │   ├── personal/    VincularBarbero.ts · DefinirJornada.ts
-│   │   │   │                SolicitarAusencia.ts · AprobarAusencia.ts
-│   │   │   ├── reserva/     ConsultarEspaciosLibres.ts · ReservarTurno.ts
-│   │   │   │                ConfirmarPagoAnticipo.ts · CancelarTurno.ts · ReprogramarTurno.ts
-│   │   │   ├── agenda/      ConsultarAgendaGeneral.ts · ConsultarAgendaBarbero.ts
-│   │   │   │                CerrarTurno.ts · MarcarInasistencia.ts
-│   │   │   └── LiberarReservasVencidas.ts   ← lo ejecuta el planificador
-│   │   ├── dto/            BarberiaDto.ts · ServicioDto.ts   lo que sale hacia el borde
-│   │   └── errores/        ErrorAplicacion.ts   fallos de orquestación, no reglas del negocio
-│   │
-│   ├── infraestructura/
-│   │   ├── persistencia/   conexion.ts
-│   │   │                   repositorios/  RepositorioBarberiasSQLServer.ts
-│   │   │                                  RepositorioServiciosSQLServer.ts
-│   │   │                   mapeadores/    MapeadorBarberia.ts · MapeadorServicio.ts
-│   │   │                                  (fila ⇄ agregado)
-│   │   │                   migraciones/   esquema.ts · aplicarEsquema.ts
-│   │   ├── configuracion/  cargarEntorno.ts   (lee .env antes que nadie toque process.env)
-│   │   ├── pagos/          PasarelaPagosSandbox.ts · SimuladorPagos.ts   (mismo contrato)
-│   │   ├── notificaciones/ NotificadorCorreo.ts · NotificadorBitacora.ts
-│   │   ├── http/           servidor.ts · controladores/ · rutas/ · middlewares/ · dto/
-│   │   ├── seguridad/      Autenticacion.ts · AutorizacionPorRol.ts · ContextoBarberia.ts
-│   │   ├── identificadores/ GeneradorIdUuid.ts   (única fuente de identificadores)
-│   │   ├── tiempo/         RelojSistema.ts       (única fuente de "ahora")
-│   │   └── planificador/   TareaLiberarReservas.ts
-│   │
-│   └── main.ts             raíz de composición: ÚNICO lugar con `new` de infraestructura
+KronoBarber/
+├── prisma/
+│   ├── schema.prisma                  esquema de la BD (fuente de verdad del ORM)
+│   └── migrations/                    SQL generado por `prisma migrate dev` (se versiona)
 │
-└── tests/                  espeja backend/src/
-    ├── unidad/             dominio y casos de uso · sin BD, sin red, en milisegundos
-    ├── integracion/        adaptadores reales
-    ├── e2e/                el flujo completo por HTTP
-    └── dobles/             RelojFijo.ts · GeneradorIdSecuencial.ts
-                            RepositorioBarberiasEnMemoria.ts · PerfilBarberiaDePrueba.ts
+├── src/
+│   ├── dominio/                       ⬅ EL NEGOCIO. No importa nada de afuera.
+│   │   ├── modelo/
+│   │   │   ├── Barberia.ts            entidad + EstadoBarberia + BarberiaDTO + aBarberiaDTO()
+│   │   │   └── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
+│   │   └── puertos/
+│   │       └── index.ts               BarberiaDAO · ServicioDAO
+│   │
+│   ├── aplicacion/                    ⬅ ORQUESTACIÓN de las reglas.
+│   │   └── casos-uso/
+│   │       ├── RegistrarBarberia.ts   caso de uso + RegistroBarberiaDTO + CorreoDeBarberiaYaRegistrado
+│   │       ├── HabilitarBarberia.ts   caso de uso + BarberiaNoEncontrada + BarberiaYaHabilitada
+│   │       └── CrearServicio.ts       caso de uso + CreacionServicioDTO + ServicioYaExiste
+│   │
+│   ├── infraestructura/               ⬅ LO REEMPLAZABLE. Aquí vive la tecnología.
+│   │   ├── persistencia/
+│   │   │   ├── prisma.ts              PrismaClient con el adaptador de SQL Server
+│   │   │   ├── BarberiaDAOPrisma.ts   adaptador: implementa BarberiaDAO con Prisma
+│   │   │   ├── ServicioDAOPrisma.ts   adaptador: implementa ServicioDAO con Prisma
+│   │   │   └── generado/              (no versionado) cliente generado por Prisma
+│   │   └── http/
+│   │       ├── servidor.ts            arma la app Express: prefijo /api, Swagger, 404, errores
+│   │       ├── openapi.ts             contrato OpenAPI 3.0.3 como objeto TS
+│   │       └── rutas/
+│   │           ├── barberias.ts       validación de frontera + handlers de barberías
+│   │           └── servicios.ts       validación de frontera + handlers del catálogo
+│   │
+│   └── main.ts                        ⬅ RAÍZ DE COMPOSICIÓN. El único con `new`.
+│
+├── tests/
+│   ├── unidad/                        casos de uso y reglas, sin BD ni red, en milisegundos
+│   ├── dobles/                        BarberiaDAOEnMemoria · ServicioDAOEnMemoria
+│   └── arquitectura.test.ts           verifica la regla de dependencias
+│
+├── .env.example                       plantilla de variables (sí se versiona)
+├── .gitignore
+├── package.json
+├── prisma.config.ts                   configuración del CLI de Prisma 7
+├── tsconfig.json
+└── vitest.config.ts
 ```
+
+Equivalencias para quien venga de MVC:
+
+| Concepto MVC | Aquí se llama | Ubicación |
+|---|---|---|
+| `models/` | Entidades de dominio | `src/dominio/modelo/` |
+| `repositories/` (interfaz) | Puertos `...DAO` | `src/dominio/puertos/index.ts` |
+| `repositories/` (implementación) | Adaptadores `...DAOPrisma` | `src/infraestructura/persistencia/` |
+| `services/` | Casos de uso | `src/aplicacion/casos-uso/` |
+| `controllers/` + `routes/` | Handlers dentro del `Router` | `src/infraestructura/http/rutas/` |
+| `middlewares/` | Funciones que devuelven `RequestHandler` | Junto a la ruta que las usa |
+| `dtos/` | Sin carpeta: cada DTO junto a quien lo usa | ver abajo |
+| `config/` + inyección de dependencias | Raíz de composición | `src/main.ts` |
+| `utils/` / `helpers/` | **Prohibido por convención** | — |
+
+### Cómo está hecha cada entidad
+
+**Hay dos definiciones de cada entidad, a propósito:**
+
+| | Dónde | Qué es |
+|---|---|---|
+| Modelo de persistencia | `prisma/schema.prisma` | Cómo se guarda en SQL Server: `@id`, `@unique`, `@db.NVarChar`, columnas de auditoría (`creadoEn`) |
+| Entidad de dominio | `src/dominio/modelo/*.ts` | Qué es para el negocio: una `interface` de TypeScript pura, sin decoradores ni dependencia del ORM |
+
+Entre las dos está la función `aDominio()` del adaptador DAO. Esa separación es lo que permite cambiar de
+ORM sin tocar el dominio. Cada archivo de `modelo/` tiene las mismas cinco piezas:
+
+1. Los estados como **array `as const` + tipo derivado** (`ESTADOS_BARBERIA` → `EstadoBarberia`), no `enum`
+   de TypeScript. El mismo array valida datos y alimenta el `enum` de OpenAPI.
+2. La **entidad sin sufijo** (`Barberia`, `Servicio`).
+3. El tipo para creación: `BarberiaNueva = Omit<Barberia, 'id'>`. El id lo asigna la base de datos.
+4. El **DTO de salida** (`BarberiaDTO`): lo que cruza por HTTP. `BarberiaDTO` no tiene `motivoSuspension`,
+   así que ese dato interno del operador no puede filtrarse por descuido.
+5. **Funciones puras**: guardas de tipo (`esEstadoBarberia`, `esPrecioValido`, `esDuracionValida`), reglas
+   (`esVisibleParaClientes`) y el mapeador a DTO (`aBarberiaDTO`), la única puerta de salida.
 
 **`Catalogo` no es una clase, y es deliberado.** El §3 lo define como *los servicios vigentes de una
-barbería*, pero eso es una **consulta**, no un agregado con estado propio: no tiene invariantes que
-proteger más allá de las que ya protege cada `Servicio`. Modelarlo como clase obligaría a cargar
-todos los servicios de una barbería en memoria para responder un listado. Vive, por tanto, en los
-casos de uso `ListarCatalogoDeBarberia` (gestión, incluye inactivos) y `ListarCatalogoPublico`
-(vitrina, solo activos y solo si la barbería está habilitada).
+barbería*, pero eso es una **consulta** (`ServicioDAO.activosDe`), no una entidad con estado propio.
 
-**Configuración en la raíz del repositorio**: `package.json` (el del servidor), `tsconfig.json`
-(tipado estricto y alias, incluye pruebas), `tsconfig.build.json` (solo compila `backend/src` a
-`dist/`) y `eslint.config.js` (la regla de dependencia).
+### Convención de sufijos
+
+| Sufijo | Significa | Ejemplos |
+|---|---|---|
+| `...DTO` | Estructura que **cruza una frontera**. Solo campos. | `BarberiaDTO`, `RegistroBarberiaDTO`, `CreacionServicioDTO` |
+| `...DAO` | Contrato de **acceso a datos**, en vocabulario del negocio (`guardar`, `porId`, `activosDe`). | `BarberiaDAO` (puerto) · `BarberiaDAOPrisma`, `BarberiaDAOEnMemoria` (implementaciones) |
+| sin sufijo | Entidades y puertos de comportamiento. | `Barberia`, `Servicio`, `EstadoBarberia` |
+
+Un DTO vive **junto al código que lo usa**: el de salida de una entidad, con la entidad; el de entrada de
+un caso de uso, con el caso de uso; uno puramente HTTP, con la ruta.
+
+### Casos de uso y rutas
+
+Cada caso de uso es **una clase, con dependencias `private readonly` por constructor y un único método
+`ejecutar()`**. Solo importa del dominio, y en el mismo archivo declara su DTO de entrada y sus errores de
+negocio (`CorreoDeBarberiaYaRegistrado`). La normalización (`trim`, correo en minúsculas, teléfono sin
+separadores) es del caso de uso, no de HTTP.
+
+Cada archivo de `rutas/` tiene cuatro bloques: validación de frontera (`validarRegistro(cuerpo: unknown):
+RegistroBarberiaDTO | string`, donde el string es el mensaje del 400), la interfaz `Dependencias...`, los
+middlewares si hacen falta y la fábrica del `Router`. Cada handler hace siempre lo mismo: validar → `400`;
+llamar al caso de uso; responder con el DTO; traducir errores de negocio a HTTP (`409`, `404`) y delegar el
+resto a `next(error)`. **El dominio no sabe qué es un 409.**
+
+### Conexión a SQL Server (sin Docker)
+
+La base de datos es un **SQL Server instalado en la máquina** (servicio de Windows), no un contenedor.
+La configuración entra por variables de entorno, nunca por el código (RES-13):
+
+| Variable | Para qué | ¿Obligatoria? |
+|---|---|---|
+| `BD_SERVIDOR` | Host de SQL Server | Sí |
+| `BD_PUERTO` | Puerto TCP | No (1433) |
+| `BD_NOMBRE` | Base de datos de la aplicación | Sí |
+| `BD_USUARIO` · `BD_CONTRASENA` | Login de SQL Server | Sí |
+| `BD_CIFRADO` | `false` desactiva el cifrado de la conexión | No (`true`) |
+| `BD_CONFIAR_CERTIFICADO` | `true` acepta el certificado autofirmado de un SQL Server local | No (`false`) |
+| `PUERTO` | Puerto HTTP | No (3000) |
+
+Las mismas variables sirven a los dos consumidores:
+
+- **En ejecución**, `src/infraestructura/persistencia/prisma.ts` arma el objeto de configuración de
+  `PrismaMssql`, que no acepta URL, y **falla temprano** con un mensaje que dice qué hacer si falta alguna.
+- **Para el CLI** (`migrate`, `studio`), `prisma.config.ts` compone con ellas la URL `sqlserver://…` y la
+  de la **base sombra** `<BD_NOMBRE>_sombra`.
+
+Diferencias con PostgreSQL que condicionan el esquema:
+
+| Tema | En SQL Server con Prisma | Cómo se resolvió |
+|---|---|---|
+| `enum` | **No soportado** | `estado` es `String`. La lista válida vive en el dominio y `BarberiaDAOPrisma` la comprueba al leer |
+| `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo no se puede borrar |
+| Base sombra de `migrate dev` | Crearla automáticamente exige ser administrador del servidor | Se crea una vez a mano (`KronoBarber_sombra`) y `prisma.config.ts` la declara |
+| Mayúsculas | La intercalación por defecto no las distingue | «Corte clásico» y «CORTE CLÁSICO» chocan en el `@@unique([barberiaId, nombre])`, que es lo que se quiere |
 
 ### Puesta en marcha
 
+**Requisitos**: Node.js 20.12 o superior; SQL Server 2022 con **TCP/IP habilitado en el puerto 1433**
+(SQL Server Configuration Manager) y **autenticación mixta** (SQL Server y Windows).
+
+**Preparación única de la base de datos**, con un usuario administrador (por ejemplo
+`sqlcmd -S localhost -E -C`):
+
+```sql
+CREATE LOGIN kronobarber WITH PASSWORD = 'una-clave-local-segura', CHECK_POLICY = OFF;
+CREATE DATABASE KronoBarber;
+CREATE DATABASE KronoBarber_sombra;   -- la base sombra que usa `prisma migrate dev`
+GO
+USE KronoBarber;
+CREATE USER kronobarber FOR LOGIN kronobarber;
+ALTER ROLE db_owner ADD MEMBER kronobarber;
+GO
+USE KronoBarber_sombra;
+CREATE USER kronobarber FOR LOGIN kronobarber;
+ALTER ROLE db_owner ADD MEMBER kronobarber;
+GO
+```
+
+**Secuencia completa**, desde la raíz del repositorio:
+
 ```bash
-npm install
-npm run verificar     # typecheck + lint + pruebas: lo mismo que exige la integración continua
-npm run probar        # solo la suite unitaria
-npm run dev           # servidor en http://localhost:3000  (GET /salud responde {"estado":"ok"})
-npm run build         # a dist/ ; luego npm start
+npm install                      # el postinstall genera el cliente de Prisma
+cp .env.example .env             # PowerShell: Copy-Item .env.example .env  — y poner la contraseña
+npm run db:migrate               # aplica las migraciones (crea las tablas Barberia y Servicio)
+npm run dev                      # KronoBarber escuchando en http://localhost:3000/api · docs en /api/docs
 ```
 
-La conexión a SQL Server entra por variables de entorno, nunca por el código (RES-13):
-`BD_SERVIDOR`, `BD_NOMBRE`, `BD_USUARIO`, `BD_CONTRASENA`, y opcionalmente `BD_PUERTO`
-(1433), `BD_CIFRADO`, `BD_CONFIAR_CERTIFICADO` y `PUERTO`.
+> Instala las versiones del `package.json` tal cual. Hoy la etiqueta `latest` de `prisma` en npm apunta a
+> una versión candidata de Prisma 8, mientras `@prisma/client` y `@prisma/adapter-mssql` van en 7.10:
+> un `npm install prisma` sin versión los desalinea.
 
-### Frontend
+### Scripts
 
-La interfaz se construye con **React + TypeScript**. Es un cliente del sistema, **no una capa del
-hexágono**: vive fuera de `backend/` y se comunica exclusivamente por la API HTTP que expone
-`infraestructura/http/`. El hexágono no sabe que existe React, y React no conoce el modelo de dominio:
-conoce los DTO del borde HTTP.
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Ejecuta `src/main.ts` con `tsx`, sin compilar y recargando al guardar. Carga `.env` con `--env-file` |
+| `npm run build` | `tsc`: compila `src/` y `tests/` a `dist/` |
+| `npm start` | Ejecuta el JS compilado (`dist/src/main.js`). Requiere `build` |
+| `npm test` | Vitest en modo watch |
+| `npm run cov` | Vitest una pasada con cobertura (puede pedir instalar `@vitest/coverage-v8`) |
+| `npm run db:migrate` | `prisma migrate dev`: genera el SQL en `prisma/migrations/`, lo aplica y regenera el cliente |
+| `npm run db:studio` | Explorador visual de datos de Prisma |
+| `npm run arquitectura` | Falla si `dominio/` o `aplicacion/` importan infraestructura, Express o Prisma |
+| `postinstall` | Automático tras `npm install`: `prisma generate` |
 
-A hoy el cliente **no está construido**: solo existen las carpetas. Este árbol fija dónde irá cada
-pieza, no lo que ya hay.
+**Cuando cambies el esquema**: edita `prisma/schema.prisma` y corre `npm run db:migrate` (pide un nombre
+descriptivo). Las migraciones **se versionan siempre** y no se editan a mano.
 
+### Endpoints disponibles hoy (`/api`)
+
+| Método | Ruta | Qué hace | Errores |
+|---|---|---|---|
+| `GET` | `/salud` | Verificación de vida, sin tocar la base de datos | — |
+| `GET` | `/docs` · `/openapi.json` | Swagger UI · contrato OpenAPI | — |
+| `POST` | `/barberias` | `RegistroBarberiaDTO` → `201` con `BarberiaDTO` en `PENDIENTE_VERIFICACION` (CAR-01) | `400` · `409` correo repetido |
+| `GET` | `/barberias?ciudad=` | Catálogo público: **solo habilitadas** (CAR-07, RES-11) | — |
+| `GET` | `/barberias/:id` | Detalle, en cualquier estado | `404` |
+| `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404` · `409` ya habilitada |
+| `POST` | `/barberias/:barberiaId/servicios` | `CreacionServicioDTO` → `201` con `ServicioDTO`, activo (CAR-03) | `400` · `404` · `409` nombre repetido |
+| `GET` | `/barberias/:barberiaId/servicios` | Vitrina: servicios activos, **solo si la barbería está habilitada** | `404` |
+
+Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. Entran con la
+historia de identidad, como middlewares que exijan la sesión y el rol.
+
+Prueba de humo (Git Bash; en PowerShell usar `curl.exe`, o directamente *Try it out* en `/api/docs`):
+
+```bash
+curl -X POST http://localhost:3000/api/barberias -H "Content-Type: application/json" \
+  -d '{"nombre":"Barbería El Clásico","direccion":"Calle 65 # 23-10","ciudad":"Manizales","telefono":"(606) 887-1234","correo":"contacto@elclasico.co"}'
+curl -X POST http://localhost:3000/api/barberias/<ID>/habilitacion
+curl -X POST http://localhost:3000/api/barberias/<ID>/servicios -H "Content-Type: application/json" \
+  -d '{"nombre":"Corte clásico","precio":25000,"duracionMinutos":30}'
+curl http://localhost:3000/api/barberias/<ID>/servicios
 ```
-frontend/
-├── public/
-├── src/
-│   ├── paginas/          una por flujo completo
-│   │   ├── publico/          Inicio · ExplorarBarberias
-│   │   ├── cliente/          SeleccionarServicio · SeleccionarBarbero
-│   │   │                     CalendarioEspacios · PagarAnticipo · Comprobante · MisTurnos
-│   │   ├── barbero/          AgendaPersonal · CerrarTurno · MiJornada · SolicitarAusencia
-│   │   ├── administrador/    PerfilBarberia · Catalogo · Personal · HorarioAtencion
-│   │   │                     AgendaGeneral · Ausencias
-│   │   └── operador/         BarberiasRegistradas · HabilitarBarberia
-│   │
-│   ├── componentes/      piezas reutilizables de UI, sin lógica de negocio
-│   │   ├── comunes/
-│   │   └── agenda/
-│   ├── api/              cliente HTTP tipado, un archivo por área: barberias.ts · turnos.ts …
-│   ├── tipos/            DTO del borde HTTP (espejo de infraestructura/http/dto)
-│   ├── estado/           estado de servidor y formularios
-│   ├── estilos/
-│   ├── rutas/            enrutado y guardas por rol
-│   └── main.tsx
-└── tests/
-```
 
-**Endpoints disponibles hoy** (`/api`).
+### Problemas frecuentes
 
-Barbería:
-
-| Método y ruta | Quién | Qué hace |
+| Síntoma | Causa probable | Solución |
 |---|---|---|
-| `GET /barberias` | Cliente | Catálogo público: solo habilitadas. Filtros `?ciudad=` y `?texto=` |
-| `POST /barberias` | Administrador | Registra una barbería en PENDIENTE_VERIFICACION |
-| `GET /barberias/:id` | Administrador / Operador | Detalle completo |
-| `PUT /barberias/:id` | Administrador | Actualiza el perfil de **su** barbería |
-| `GET /operador/barberias?estado=` | Operador | Bandeja por estado |
-| `POST /operador/barberias/:id/habilitacion` | Operador | Habilita |
-| `POST /operador/barberias/:id/suspension` | Operador | Suspende, con motivo obligatorio |
+| `Falta BD_SERVIDOR (copia .env.example a .env)` | No existe `.env` | `cp .env.example .env` y completar la contraseña |
+| `Cannot find module './generado/client'` | El cliente no se ha generado | `npx prisma generate` |
+| `Failed to connect to localhost:1433` | SQL Server detenido o sin TCP/IP | Iniciar el servicio *SQL Server (SQLEXPRESS)*; en Configuration Manager habilitar TCP/IP con puerto 1433 en *IPAll* y reiniciar el servicio |
+| `Login failed for user 'kronobarber'` | Autenticación mixta desactivada o clave errada | Activar *SQL Server and Windows Authentication mode* y reiniciar |
+| `self signed certificate` | Certificado local autofirmado | `BD_CONFIAR_CERTIFICADO=true` |
+| `migrate dev` falla con la base sombra | No existe `KronoBarber_sombra` o el login no es `db_owner` en ella | Repetir la preparación única |
+| `npm run arquitectura` falla | Un archivo de `dominio/` o `aplicacion/` importa hacia afuera | La prueba lista los archivos culpables |
 
-Servicio:
+### Cliente web
 
-| Método y ruta | Quién | Qué hace |
-|---|---|---|
-| `GET /barberias/:idBarberia/catalogo` | Cliente | Vitrina: solo servicios activos de una barbería habilitada |
-| `GET /barberias/:idBarberia/servicios` | Administrador | Catálogo de gestión: incluye los inactivos |
-| `POST /barberias/:idBarberia/servicios` | Administrador | Crea un servicio con precio y duración |
-| `GET /servicios/:id` | Administrador | Detalle |
-| `PUT /servicios/:id` | Administrador | Actualiza precio, duración o descripción |
-| `POST /servicios/:id/activacion` | Administrador | Vuelve a publicarlo |
-| `POST /servicios/:id/desactivacion` | Administrador | Lo retira del catálogo **sin borrarlo** |
-
-Las guardas por rol (CAR-17) todavía no existen: hoy el solicitante se declara en el cuerpo de la
-petición. Entran con el caso de uso de identidad y ahí dejan de ser un dato que el cliente elige.
+La interfaz se construirá con **React + TypeScript** como un proyecto aparte: **no vive en este
+repositorio ni es una capa del hexágono**. Se comunica exclusivamente por la API HTTP. El hexágono no sabe
+que existe React, y React no conoce el modelo de dominio: conoce los DTO del borde HTTP (los mismos
+nombres que aparecen en `/api/docs`).
 
 **Reglas del cliente**
 
@@ -401,42 +490,22 @@ petición. Entran con el caso de uso de identidad y ahí dejan de ser un dato qu
 
 ### Dónde aterrizan los patrones
 
-| Patrón | Dónde | Por qué |
+| Patrón | Dónde | Estado |
 |---|---|---|
-| **Strategy** | `PoliticaCancelacion`, `PoliticaAsignacionEspacios` | La regla del anticipo ante una cancelación cambia sin tocar el caso de uso |
-| **Adapter** | `PasarelaPagosSandbox`, `NotificadorCorreo`, `RepositorioTurnosSQL` | Cambiar de proveedor no toca el dominio (SUP-08, DEP-03) |
-| **State** | `Turno` + `EstadoTurno` | Las transiciones inválidas se vuelven imposibles, no improbables |
-| **Observer** | Eventos del turno → notificaciones e historial | Confirmar una reserva no debe saber a quién hay que avisar |
-| **Repository** | `dominio/puertos` | El dominio habla de `guardar`, `turnosDe`, `espaciosLibres`; nunca de SQL |
+| **DAO / Repository** | `dominio/puertos`: `guardar`, `porId`, `activosDe`; nunca SQL | ✅ hoy |
+| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | ✅ hoy (persistencia) |
+| **Strategy** | `PoliticaCancelacion`, `PoliticaAsignacionEspacios` | con la reserva |
+| **State** | `Turno` + `EstadoTurno`: las transiciones inválidas se vuelven imposibles | con el turno |
+| **Observer** | Eventos del turno → notificaciones e historial | con la reserva |
 
 ### Cómo se hace cumplir la regla
 
-`eslint.config.js`:
+`tests/arquitectura.test.ts` recorre `src/dominio/` y `src/aplicacion/` y falla si algún archivo importa
+de `infraestructura/`, de `express` o de `@prisma/` (y, en el caso del dominio, de `aplicacion/`). Corre
+con `npm test` y por separado con `npm run arquitectura`.
 
-```js
-{
-  files: ["backend/src/dominio/**/*.ts"],
-  rules: {
-    "no-restricted-imports": ["error", {
-      patterns: [
-        { group: ["**/infraestructura/**"], message: "El dominio no importa infraestructura." },
-        { group: ["**/aplicacion/**"],      message: "El dominio no conoce los casos de uso." },
-        { group: ["express", "mssql"],      message: "El dominio no conoce el framework HTTP ni el driver." },
-      ],
-    }],
-  },
-}
-```
-
-Hay un bloque equivalente para `backend/src/aplicacion/**`, que tampoco puede importar
-infraestructura: depende de los puertos que declara el dominio. `npm run lint` falla en rojo si
-alguien cruza la frontera.
-
-Verificación de emergencia:
-
-```bash
-grep -rn "from ['\"].*infraestructura" backend/src/dominio/ && echo "❌ DIP roto" || echo "✅ dominio limpio"
-```
+Está escrita como prueba, y no como un `grep` en `package.json`, porque en Windows npm ejecuta los
+scripts con `cmd.exe`: así corre igual en Windows, Mac y en la integración continua.
 
 ---
 
@@ -447,17 +516,24 @@ grep -rn "from ['\"].*infraestructura" backend/src/dominio/ && echo "❌ DIP rot
 - **Nada de `GestorX` ni `ServicioX` genéricos.** Un nombre que sirve para todo no describe nada.
 - **Nada de `utils/` ni `helpers/`.** Son carpetas sin criterio de pertenencia: todo cabe y nada se
   encuentra. Si algo no tiene dónde ir, es que le falta un nombre.
-- **Un archivo, un concepto exportado.** `index.ts` que reexporta, solo en `dominio/puertos/`.
-- **`tests/` espeja `src/`.** Encontrar la prueba de un archivo no debe requerir buscar.
-- **Alias de importación** declarados en `tsconfig.json` (`"@dominio/*": ["backend/src/dominio/*"]`)
-  para evitar `../../../`. Ojo: `tsc` no reescribe los alias al emitir, así que el código de
-  `backend/src/` usa rutas relativas hasta que se añada un resolutor en el build.
-- **`main.ts` es el único archivo que puede importarlo todo.** Si un segundo empieza a hacerlo, hay un
-  problema de diseño.
-- **El tiempo entra por el puerto `Reloj`.** Ningún `new Date()` dentro de `dominio/` ni de
-  `aplicacion/`: rompe la reproducibilidad de las pruebas.
-- **El dinero es un objeto de valor `Dinero` en COP.** Nunca un `number` suelto: el 20 % y el redondeo
-  viven en un solo sitio.
+- **Un archivo por concepto.** La entidad, su DTO y sus funciones puras viven juntos en
+  `dominio/modelo/X.ts`; el caso de uso, su DTO de entrada y sus errores, en `casos-uso/VerboX.ts`
+  (verbo en infinitivo). El único `index.ts` es `dominio/puertos/`.
+- **No se crean capas vacías.** Una carpeta o un puerto entra cuando una historia de usuario lo necesita.
+- **Pruebas junto con cada entidad**: `tests/unidad/` por entidad y un doble en memoria por DAO en
+  `tests/dobles/`.
+- **Imports relativos y sin extensión** (commonjs + nodenext). `import type` para todo lo que sea solo tipo.
+- **`main.ts` es el único archivo que puede importarlo todo y hacer `new`.** Si un segundo empieza a
+  hacerlo, hay un problema de diseño.
+- **`process.env['X']` con corchetes** y guarda explícita: lo exige `noUncheckedIndexedAccess`.
+- **Nulo explícito, no opcional**: `motivoSuspension: string | null`, no `motivoSuspension?: string`
+  (`exactOptionalPropertyTypes`).
+- **Los DAO devuelven `null` cuando no encuentran**; no lanzan. "No existe" es un resultado normal.
+- **Ningún `new Date()` en `dominio/` ni en `aplicacion/`.** Hoy los instantes de auditoría (`creadoEn`) los
+  pone la base de datos. Cuando una regla necesite "ahora" (el vencimiento de reservas), entra un puerto
+  `Reloj` y su doble `RelojFijo`.
+- **El dinero son pesos COP enteros**: `Int` en la base de datos, `number` entero en el dominio, validado
+  con `esPrecioValido`. El 20 % y su redondeo vivirán en una sola función del dominio (regla 1).
 - **Los instantes se persisten en UTC y se presentan en America/Bogotá.** La conversión ocurre en los
   bordes, no en el dominio.
 
@@ -495,5 +571,3 @@ grep -rn "from ['\"].*infraestructura" backend/src/dominio/ && echo "❌ DIP rot
 | `DocumentoDeVision-KronoBarber-V1.1.docx` | Fuente de verdad del alcance, los interesados, las características y las restricciones |
 | `Idea_general_del_proyecto` | Descripción original de la que parte el producto |
 | `documento-vision.md` | Plantilla y guía del curso para el documento de visión |
-| `estructura-carpetas-node.md` | Las cuatro alternativas de estructura y por qué se eligió la hexagonal |
-| `VisionHelpdeskUAM.pdf` | Documento de visión de ejemplo del curso (HelpDesk UAM), usado como referencia de forma |

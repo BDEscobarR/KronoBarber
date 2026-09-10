@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/infraestructura/persistencia/generado"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+// SQL Server no admite `enum` en Prisma: el estado se guarda como texto y la lista
+// de valores válidos vive en el dominio (ESTADOS_BARBERIA). El DAO la comprueba al leer.
+model Barberia {
+  id               String     @id @default(uuid()) @db.NVarChar(36)
+  nombre           String     @db.NVarChar(80)
+  descripcion      String     @default("") @db.NVarChar(500)
+  direccion        String     @db.NVarChar(200)
+  ciudad           String     @db.NVarChar(100)
+  telefono         String     @db.NVarChar(20)
+  correo           String     @unique @db.NVarChar(254)
+  estado           String     @default("PENDIENTE_VERIFICACION") @db.VarChar(30)
+  motivoSuspension String?    @db.NVarChar(500)
+  creadoEn         DateTime   @default(now())
+  servicios        Servicio[]
+
+  @@index([estado, ciudad])
+}
+
+model Servicio {
+  id              String   @id @default(uuid()) @db.NVarChar(36)
+  barberiaId      String   @db.NVarChar(36)
+  nombre          String   @db.NVarChar(80)
+  descripcion     String   @default("") @db.NVarChar(300)
+  precio          Int
+  duracionMinutos Int
+  activo          Boolean  @default(true)
+  creadoEn        DateTime @default(now())
+  // SQL Server no admite `Restrict`; `NoAction` produce el mismo efecto: una barbería
+  // con catálogo no se puede borrar. Las barberías se suspenden, no se borran.
+  barberia        Barberia @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([barberiaId, nombre])
+}

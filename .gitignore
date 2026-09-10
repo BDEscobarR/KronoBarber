@@ -1,7 +1,8 @@
-node_modules/
-dist/
+node_modules
+dist
+coverage
 .env
-.env.local
+src/infraestructura/persistencia/generado
 
 # Notas de trabajo locales, no forman parte de la entrega
 EntidadesRestantes.md
