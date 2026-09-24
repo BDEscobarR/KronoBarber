@@ -6,6 +6,13 @@
 
 import type { Barberia, BarberiaNueva, EstadoBarberia } from '../modelo/Barberia'
 import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
+import type { Usuario, UsuarioNuevo } from '../modelo/Usuario.ts';
+
+export interface UsuarioDAO {
+  guardar(usuario: UsuarioNuevo): Promise<Usuario>;
+  porId(id: string): Promise<Usuario | null>;
+  porCorreo(correo: string): Promise<Usuario | null>;
+}
 
 /**
  * Acceso a datos de las barberías. Lo declara el dominio y lo implementa la infraestructura

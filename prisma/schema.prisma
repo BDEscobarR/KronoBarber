@@ -40,3 +40,15 @@ model Servicio {
 
   @@unique([barberiaId, nombre])
 }
+
+model Usuario {
+  id          String   @id @default(uuid())
+  nombre      String   @db.NVarChar(100)
+  correo      String   @unique @db.NVarChar(150)
+  claveHash   String   @db.NVarChar(255)
+  rol         String   @db.NVarChar(30)
+  barberiaId  String?  @db.NVarChar(36)
+  creadoEn    DateTime @default(now())
+
+  @@map("Usuarios")
+}
