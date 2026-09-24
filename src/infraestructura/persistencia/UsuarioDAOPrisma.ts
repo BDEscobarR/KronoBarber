@@ -1,49 +1,73 @@
-// src/infraestructura/persistencia/UsuarioDAOPrisma.ts
-import type { PrismaClient } from './generado/client';
-import type { UsuarioDAO } from '../../dominio/puertos';
-import type { Usuario, UsuarioNuevo } from '../../dominio/modelo/Usuario';
-import { esRolUsuario } from '../../dominio/modelo/Usuario';
+import type { PrismaClient } from './generado/client'
+import type { UsuarioModel as FilaUsuario } from './generado/models'
+import { esRolUsuario, type Usuario, type UsuarioNuevo } from '../../dominio/modelo/Usuario'
+import type { UsuarioDAO } from '../../dominio/puertos'
 
+/**
+ * Traduce una fila de la tabla `Usuario` a la entidad del dominio. Descarta `creadoEn`, que
+ * existe en la tabla pero no en el dominio.
+ *
+ * SQL Server no tiene enums en Prisma: `rol` llega como texto libre y se comprueba aquí, antes
+ * de entrar al dominio como `RolUsuario`.
+ *
+ * @param fila Registro leído con Prisma.
+ * @returns El usuario del dominio.
+ * @throws {Error} Si la columna `rol` trae un valor que el dominio no conoce.
+ */
+const aDominio = (fila: FilaUsuario): Usuario => {
+  if (!esRolUsuario(fila.rol)) throw new Error(`Rol de usuario desconocido: ${fila.rol}`)
+  return {
+    id: fila.id,
+    nombre: fila.nombre,
+    correo: fila.correo,
+    claveHash: fila.claveHash,
+    rol: fila.rol,
+    barberiaId: fila.barberiaId,
+    activo: fila.activo,
+  }
+}
+
+/**
+ * Adaptador de persistencia: implementa `UsuarioDAO` con Prisma sobre SQL Server. Es la bisagra
+ * entre el ORM y el negocio: nada fuera de este archivo ve una fila de la tabla.
+ */
 export class UsuarioDAOPrisma implements UsuarioDAO {
+  /**
+   * @param prisma Cliente de Prisma. Se recibe por constructor, no se importa, para poder
+   *   inyectar otro en pruebas de integración.
+   */
   constructor(private readonly prisma: PrismaClient) {}
 
-  async guardar(datos: UsuarioNuevo): Promise<Usuario> {
-    const creado = await this.prisma.usuario.create({
-      data: {
-        nombre: datos.nombre,
-        correo: datos.correo,
-        claveHash: datos.claveHash,
-        rol: datos.rol,
-        barberiaId: datos.barberiaId,
-      },
-    });
-
-    return this.aDominio(creado);
+  /**
+   * Inserta el usuario; la base de datos asigna el UUID y `creadoEn`.
+   *
+   * @param usuario Datos completos, sin id, con la clave ya convertida en hash.
+   * @returns El usuario guardado.
+   * @throws Error de Prisma (P2003) si `barberiaId` no corresponde a una barbería existente.
+   */
+  async guardar(usuario: UsuarioNuevo): Promise<Usuario> {
+    return aDominio(await this.prisma.usuario.create({ data: usuario }))
   }
 
+  /**
+   * Busca por la llave primaria.
+   *
+   * @param id Identificador del usuario.
+   * @returns El usuario, o `null` si no existe.
+   */
   async porId(id: string): Promise<Usuario | null> {
-    const registro = await this.prisma.usuario.findUnique({ where: { id } });
-    return registro ? this.aDominio(registro) : null;
+    const fila = await this.prisma.usuario.findUnique({ where: { id } })
+    return fila && aDominio(fila)
   }
 
+  /**
+   * Busca por el índice único de `correo`.
+   *
+   * @param correo Correo ya normalizado en minúsculas.
+   * @returns El usuario, o `null` si ninguno usa ese correo.
+   */
   async porCorreo(correo: string): Promise<Usuario | null> {
-    const registro = await this.prisma.usuario.findUnique({ where: { correo } });
-    return registro ? this.aDominio(registro) : null;
-  }
-
-  private aDominio(registro: { id: string; nombre: string; correo: string; claveHash: string; rol: string; barberiaId: string | null; creadoEn: Date }): Usuario {
-    if (!esRolUsuario(registro.rol)) {
-      throw new Error(`Rol inválido en la base de datos: ${registro.rol}`);
-    }
-
-    return {
-      id: registro.id,
-      nombre: registro.nombre,
-      correo: registro.correo,
-      claveHash: registro.claveHash,
-      rol: registro.rol,
-      barberiaId: registro.barberiaId,
-      creadoEn: registro.creadoEn,
-    };
+    const fila = await this.prisma.usuario.findUnique({ where: { correo } })
+    return fila && aDominio(fila)
   }
 }

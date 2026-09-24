@@ -21,6 +21,7 @@ model Barberia {
   motivoSuspension String?    @db.NVarChar(500)
   creadoEn         DateTime   @default(now())
   servicios        Servicio[]
+  usuarios         Usuario[]
 
   @@index([estado, ciudad])
 }
@@ -41,14 +42,18 @@ model Servicio {
   @@unique([barberiaId, nombre])
 }
 
+// Igual que `estado` en Barberia: el rol es texto y la lista válida vive en el dominio
+// (ROLES_USUARIO). `barberiaId` es nulo para OPERADOR y CLIENTE, que no pertenecen a ninguna.
 model Usuario {
-  id          String   @id @default(uuid())
-  nombre      String   @db.NVarChar(100)
-  correo      String   @unique @db.NVarChar(150)
-  claveHash   String   @db.NVarChar(255)
-  rol         String   @db.NVarChar(30)
-  barberiaId  String?  @db.NVarChar(36)
-  creadoEn    DateTime @default(now())
-
-  @@map("Usuarios")
+  id         String    @id @default(uuid()) @db.NVarChar(36)
+  nombre     String    @db.NVarChar(100)
+  correo     String    @unique @db.NVarChar(254)
+  // Hash de la clave, nunca la clave. Es ASCII: no necesita NVarChar.
+  claveHash  String    @db.VarChar(255)
+  rol        String    @db.VarChar(30)
+  barberiaId String?   @db.NVarChar(36)
+  activo     Boolean   @default(true)
+  creadoEn   DateTime  @default(now())
+  // Una barbería con personal no se puede borrar, igual que una con catálogo.
+  barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }

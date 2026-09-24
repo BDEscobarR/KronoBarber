@@ -243,9 +243,10 @@ KronoBarber/
 │   ├── dominio/                       el negocio: no importa nada de afuera
 │   │   ├── modelo/
 │   │   │   ├── Barberia.ts            entidad + EstadoBarberia + BarberiaDTO + aBarberiaDTO()
-│   │   │   └── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
+│   │   │   ├── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
+│   │   │   └── Usuario.ts             entidad + RolUsuario + perteneceABarberia() + UsuarioDTO (sin claveHash)
 │   │   └── puertos/
-│   │       └── index.ts               BarberiaDAO y ServicioDAO
+│   │       └── index.ts               BarberiaDAO, ServicioDAO y UsuarioDAO
 │   │
 │   ├── aplicacion/                    orquestación de las reglas
 │   │   └── casos-uso/
@@ -258,6 +259,7 @@ KronoBarber/
 │   │   │   ├── prisma.ts              PrismaClient con el adaptador de SQL Server
 │   │   │   ├── BarberiaDAOPrisma.ts   adaptador: implementa BarberiaDAO con Prisma
 │   │   │   ├── ServicioDAOPrisma.ts   adaptador: implementa ServicioDAO con Prisma
+│   │   │   ├── UsuarioDAOPrisma.ts    adaptador: implementa UsuarioDAO con Prisma
 │   │   │   └── generado/              (no versionado) cliente generado por Prisma
 │   │   └── http/
 │   │       ├── servidor.ts            arma la app Express: prefijo /api, Swagger, 404, errores
@@ -270,7 +272,7 @@ KronoBarber/
 │
 ├── tests/
 │   ├── unidad/                        casos de uso y reglas, sin BD ni red, en milisegundos
-│   ├── dobles/                        BarberiaDAOEnMemoria y ServicioDAOEnMemoria
+│   ├── dobles/                        BarberiaDAOEnMemoria, ServicioDAOEnMemoria y UsuarioDAOEnMemoria
 │   └── arquitectura.test.ts           verifica la regla de dependencias
 │
 ├── .env.example                       plantilla de variables (sí se versiona)
@@ -312,9 +314,11 @@ ORM sin tocar el dominio. Cada archivo de `modelo/` tiene las mismas cinco pieza
 2. La **entidad sin sufijo** (`Barberia`, `Servicio`).
 3. El tipo para creación: `BarberiaNueva = Omit<Barberia, 'id'>`. El id lo asigna la base de datos.
 4. El **DTO de salida** (`BarberiaDTO`): lo que cruza por HTTP. `BarberiaDTO` no tiene `motivoSuspension`,
-   así que ese dato interno del operador no puede filtrarse por descuido.
-5. **Funciones puras**: guardas de tipo (`esEstadoBarberia`, `esPrecioValido`, `esDuracionValida`), reglas
-   (`esVisibleParaClientes`) y el mapeador a DTO (`aBarberiaDTO`), la única puerta de salida.
+   así que ese dato interno del operador no puede filtrarse por descuido. Por la misma razón, `UsuarioDTO`
+   no tiene `claveHash`.
+5. **Funciones puras**: guardas de tipo (`esEstadoBarberia`, `esRolUsuario`, `esPrecioValido`,
+   `esDuracionValida`), reglas (`esVisibleParaClientes`, `perteneceABarberia`) y el mapeador a DTO
+   (`aBarberiaDTO`), la única puerta de salida.
 
 **`Catalogo` no es una clase, y es deliberado.** El §3 lo define como *los servicios vigentes de una
 barbería*, pero eso es una **consulta** (`ServicioDAO.activosDe`), no una entidad con estado propio.
@@ -369,8 +373,8 @@ Diferencias con PostgreSQL que condicionan el esquema:
 
 | Tema | En SQL Server con Prisma | Cómo se resolvió |
 |---|---|---|
-| `enum` | **No soportado** | `estado` es `String`. La lista válida vive en el dominio y `BarberiaDAOPrisma` la comprueba al leer |
-| `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo no se puede borrar |
+| `enum` | **No soportado** | `estado` (Barberia) y `rol` (Usuario) son `String`. La lista válida vive en el dominio y el DAO la comprueba al leer |
+| `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo o con personal no se puede borrar |
 | Base sombra de `migrate dev` | Crearla automáticamente exige ser administrador del servidor | Se crea una vez a mano (`KronoBarber_sombra`) y `prisma.config.ts` la declara |
 | Mayúsculas | La intercalación por defecto no las distingue | "Corte clásico" y "CORTE CLÁSICO" chocan en el `@@unique([barberiaId, nombre])`, que es lo que se quiere |
 
@@ -402,7 +406,7 @@ GO
 ```bash
 npm install                      # el postinstall genera el cliente de Prisma
 cp .env.example .env             # en PowerShell: Copy-Item .env.example .env; luego poner la contraseña
-npm run db:migrate               # aplica las migraciones (crea las tablas Barberia y Servicio)
+npm run db:migrate               # aplica las migraciones (crea las tablas Barberia, Servicio y Usuario)
 npm run dev                      # KronoBarber escuchando en http://localhost:3000/api (documentación en /api/docs)
 ```
 
@@ -419,13 +423,15 @@ npm run dev                      # KronoBarber escuchando en http://localhost:30
 | `npm start` | Ejecuta el JS compilado (`dist/src/main.js`). Requiere `build` |
 | `npm test` | Vitest en modo watch |
 | `npm run cov` | Vitest una pasada con cobertura (puede pedir instalar `@vitest/coverage-v8`) |
-| `npm run db:migrate` | `prisma migrate dev`: genera el SQL en `prisma/migrations/`, lo aplica y regenera el cliente |
+| `npm run db:migrate` | `prisma migrate dev`: genera el SQL en `prisma/migrations/` y lo aplica. En Prisma 7 **no** regenera el cliente |
 | `npm run db:studio` | Explorador visual de datos de Prisma |
 | `npm run arquitectura` | Falla si `dominio/` o `aplicacion/` importan infraestructura, Express o Prisma |
 | `postinstall` | Automático tras `npm install`: `prisma generate` |
 
-**Cuando cambies el esquema**: edita `prisma/schema.prisma` y corre `npm run db:migrate` (pide un nombre
-descriptivo). Las migraciones **se versionan siempre** y no se editan a mano.
+**Cuando cambies el esquema**: edita `prisma/schema.prisma`, corre `npm run db:migrate` (pide un nombre
+descriptivo) y después `npx prisma generate` para que TypeScript vea los cambios. Las migraciones **se
+versionan siempre** y no se editan a mano. Al traer una migración de otro integrante basta con
+`npm run db:migrate` seguido de `npx prisma generate`.
 
 ### Endpoints disponibles hoy (`/api`)
 
@@ -440,8 +446,10 @@ descriptivo). Las migraciones **se versionan siempre** y no se editan a mano.
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
 | `GET` | `/barberias/:barberiaId/servicios` | Vitrina: servicios activos, **solo si la barbería está habilitada** | `404` |
 
-Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. Entran con la
-historia de identidad, como middlewares que exijan la sesión y el rol.
+Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
+existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
+administrador y el barbero, `activo` y su `UsuarioDAO`. Faltan el registro, el inicio de sesión y los
+middlewares que exijan la sesión y el rol.
 
 Prueba de humo (Git Bash; en PowerShell usar `curl.exe`, o directamente *Try it out* en `/api/docs`):
 
@@ -460,6 +468,7 @@ curl http://localhost:3000/api/barberias/<ID>/servicios
 |---|---|---|
 | `Falta BD_SERVIDOR (copia .env.example a .env)` | No existe `.env` | `cp .env.example .env` y completar la contraseña |
 | `Cannot find module './generado/client'` | El cliente no se ha generado | `npx prisma generate` |
+| `Property 'x' does not exist on type 'PrismaClient'` o sobre un modelo | El cliente se generó antes de que el esquema cambiara (migrar no lo regenera) | `npx prisma generate` |
 | `Failed to connect to localhost:1433` | SQL Server detenido o sin TCP/IP | Iniciar el servicio *SQL Server (SQLEXPRESS)*; en Configuration Manager habilitar TCP/IP con puerto 1433 en *IPAll* y reiniciar el servicio |
 | `Login failed for user 'kronobarber'` | Autenticación mixta desactivada o clave errada | Activar *SQL Server and Windows Authentication mode* y reiniciar |
 | `self signed certificate` | Certificado local autofirmado | `BD_CONFIAR_CERTIFICADO=true` |
@@ -493,7 +502,7 @@ nombres que aparecen en `/api/docs`).
 | Patrón | Dónde | Estado |
 |---|---|---|
 | **DAO / Repository** | `dominio/puertos`: `guardar`, `porId`, `activosDe`; nunca SQL | Implementado |
-| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia) |
+| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`, `UsuarioDAOPrisma`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia) |
 | **Strategy** | `PoliticaCancelacion`, `PoliticaAsignacionEspacios` | con la reserva |
 | **State** | `Turno` + `EstadoTurno`: las transiciones inválidas se vuelven imposibles | con el turno |
 | **Observer** | Eventos del turno que disparan notificaciones e historial | con la reserva |

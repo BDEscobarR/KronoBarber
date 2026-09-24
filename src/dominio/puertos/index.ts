@@ -6,13 +6,7 @@
 
 import type { Barberia, BarberiaNueva, EstadoBarberia } from '../modelo/Barberia'
 import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
-import type { Usuario, UsuarioNuevo } from '../modelo/Usuario.ts';
-
-export interface UsuarioDAO {
-  guardar(usuario: UsuarioNuevo): Promise<Usuario>;
-  porId(id: string): Promise<Usuario | null>;
-  porCorreo(correo: string): Promise<Usuario | null>;
-}
+import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
 /**
  * Acceso a datos de las barberías. Lo declara el dominio y lo implementa la infraestructura
@@ -98,4 +92,37 @@ export interface ServicioDAO {
    * @returns Los servicios activos; una lista vacía si no tiene ninguno.
    */
   activosDe(barberiaId: string): Promise<Servicio[]>
+}
+
+/**
+ * Acceso a datos de las cuentas de usuario. Lo declara el dominio y lo implementa la
+ * infraestructura (`UsuarioDAOPrisma`); las pruebas usan un doble en memoria.
+ *
+ * El DAO guarda y devuelve el hash de la clave tal cual: calcularlo y compararlo no es su trabajo.
+ */
+export interface UsuarioDAO {
+  /**
+   * Persiste un usuario nuevo.
+   *
+   * @param usuario Datos completos, sin id, con la clave ya convertida en hash.
+   * @returns El usuario guardado, con el id que le asignó la base de datos.
+   */
+  guardar(usuario: UsuarioNuevo): Promise<Usuario>
+
+  /**
+   * Busca un usuario por su identificador.
+   *
+   * @param id Identificador del usuario.
+   * @returns El usuario, o `null` si no existe.
+   */
+  porId(id: string): Promise<Usuario | null>
+
+  /**
+   * Busca un usuario por su correo, la llave con la que inicia sesión y con la que se detecta un
+   * registro repetido.
+   *
+   * @param correo Correo ya normalizado en minúsculas.
+   * @returns El usuario, o `null` si ninguno usa ese correo.
+   */
+  porCorreo(correo: string): Promise<Usuario | null>
 }
