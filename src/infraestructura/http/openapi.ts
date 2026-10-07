@@ -166,11 +166,25 @@ export const openapi = {
     '/barberias': {
       get: {
         tags: ['Barberías'],
-        summary: 'Catálogo público: solo barberías habilitadas (CAR-07, RES-11)',
+        summary:
+          'Catálogo público (CAR-07, RES-11) o, con `estado`, la bandeja del operador (CAR-19)',
         parameters: [
           { name: 'ciudad', in: 'query', required: false, schema: { type: 'string' }, example: 'Manizales' },
+          {
+            name: 'estado',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ESTADOS_BARBERIA },
+            description:
+              'Bandeja del operador (CAR-19): filtra por este estado en vez del catálogo público de ' +
+              'habilitadas. Un valor fuera de `ESTADOS_BARBERIA` responde 400.',
+            example: 'PENDIENTE_VERIFICACION',
+          },
         ],
-        responses: { 200: { description: 'Barberías habilitadas, por nombre', content: lista('BarberiaDTO') } },
+        responses: {
+          200: { description: 'Barberías filtradas, por nombre', content: lista('BarberiaDTO') },
+          400: fallo('Estado desconocido'),
+        },
       },
       post: {
         tags: ['Barberías'],

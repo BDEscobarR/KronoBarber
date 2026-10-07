@@ -22,6 +22,10 @@ export class BarberiaDAOEnMemoria implements BarberiaDAO {
     return this.filas.filter((b) => b.estado === 'HABILITADA' && (ciudad === null || b.ciudad === ciudad))
   }
 
+  async porEstado(estado: EstadoBarberia): Promise<Barberia[]> {
+    return this.filas.filter((b) => b.estado === estado).sort((a, b) => a.nombre.localeCompare(b.nombre))
+  }
+
   async cambiarEstado(id: string, estado: EstadoBarberia, motivoSuspension: string | null): Promise<Barberia> {
     const indice = this.filas.findIndex((b) => b.id === id)
     const fila = this.filas[indice]
