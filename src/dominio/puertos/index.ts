@@ -92,6 +92,15 @@ export interface ServicioDAO {
    * @returns Los servicios activos; una lista vacía si no tiene ninguno.
    */
   activosDe(barberiaId: string): Promise<Servicio[]>
+
+  /**
+   * Catálogo de gestión de una barbería (CAR-03): todos sus servicios, activos e inactivos,
+   * ordenados por nombre. El administrador ve también lo que retiró de la vitrina.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @returns Todos los servicios de la barbería; una lista vacía si no tiene ninguno.
+   */
+  deBarberia(barberiaId: string): Promise<Servicio[]>
 }
 
 /**
