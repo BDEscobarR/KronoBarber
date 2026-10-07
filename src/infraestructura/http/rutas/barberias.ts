@@ -2,6 +2,11 @@ import { Router } from 'express'
 import { aBarberiaDTO, normalizarTelefono } from '../../../dominio/modelo/Barberia'
 import type { BarberiaDAO } from '../../../dominio/puertos'
 import {
+  BarberiaSuspendida,
+  type ActualizacionPerfilBarberiaDTO,
+  type ActualizarPerfilBarberia,
+} from '../../../aplicacion/casos-uso/ActualizarPerfilBarberia'
+import {
   BarberiaNoEncontrada,
   BarberiaYaHabilitada,
   type HabilitarBarberia,
@@ -56,10 +61,25 @@ function validarRegistro(cuerpo: unknown): RegistroBarberiaDTO | string {
   }
 }
 
+/**
+ * Validación de frontera de la actualización del perfil. El `PUT` reemplaza el perfil completo con
+ * los mismos campos y límites del registro, así que reutiliza su validación y le suma el id de la URL.
+ *
+ * @param id Barbería tomada de la URL.
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `ActualizarPerfilBarberia`, o el mensaje de error para responder un 400.
+ */
+function validarActualizacion(id: string, cuerpo: unknown): ActualizacionPerfilBarberiaDTO | string {
+  const perfil = validarRegistro(cuerpo)
+  return typeof perfil === 'string' ? perfil : { id, ...perfil }
+}
+
 /** Lo que necesitan las rutas de barberías; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasBarberias {
   /** Caso de uso del registro (CAR-01). */
   registrarBarberia: RegistrarBarberia
+  /** Caso de uso de la actualización del perfil (CAR-01). */
+  actualizarPerfilBarberia: ActualizarPerfilBarberia
   /** Caso de uso de la habilitación (CAR-02). */
   habilitarBarberia: HabilitarBarberia
   /** Acceso directo para las consultas que no tienen reglas propias. */
@@ -72,6 +92,7 @@ export interface DependenciasBarberias {
  * - `POST /`: registra una barbería. Responde 201, 400 o 409.
  * - `GET /?ciudad=`: catálogo público, solo habilitadas. Responde 200.
  * - `GET /:id`: detalle en cualquier estado. Responde 200 o 404.
+ * - `PUT /:id`: reemplaza el perfil. Responde 200, 400, 404 o 409.
  * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
  *
  * Cada handler valida, llama al caso de uso, responde con el DTO y traduce los errores de negocio
@@ -111,6 +132,20 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
       if (!barberia) return void res.status(404).json({ error: 'Barbería no encontrada' })
       res.json(aBarberiaDTO(barberia))
     } catch (error) {
+      next(error)
+    }
+  })
+
+  // Edición del perfil (CAR-01): el estado no viaja en el cuerpo, lo cambian las acciones del operador.
+  rutas.put('/:id', async (req, res, next) => {
+    const datos = validarActualizacion(req.params.id, req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
+    try {
+      res.json(aBarberiaDTO(await deps.actualizarPerfilBarberia.ejecutar(datos)))
+    } catch (error) {
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
+      if (error instanceof BarberiaSuspendida || error instanceof CorreoDeBarberiaYaRegistrado)
+        return void res.status(409).json({ error: error.message })
       next(error)
     }
   })

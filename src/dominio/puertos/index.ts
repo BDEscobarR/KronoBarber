@@ -4,7 +4,7 @@
 // - `...DTO`: estructura de datos que cruza una frontera.
 // - Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
 
-import type { Barberia, BarberiaNueva, EstadoBarberia } from '../modelo/Barberia'
+import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
@@ -58,6 +58,16 @@ export interface BarberiaDAO {
    * @returns La barbería con el estado nuevo.
    */
   cambiarEstado(id: string, estado: EstadoBarberia, motivoSuspension: string | null): Promise<Barberia>
+
+  /**
+   * Reemplaza los datos del perfil de una barbería. No toca el estado ni el motivo de suspensión:
+   * esos solo cambian con `cambiarEstado`.
+   *
+   * @param id Identificador de una barbería que ya existe (el caso de uso lo comprueba antes).
+   * @param perfil Datos del perfil, ya normalizados.
+   * @returns La barbería con el perfil nuevo.
+   */
+  actualizarPerfil(id: string, perfil: PerfilBarberia): Promise<Barberia>
 }
 
 /**

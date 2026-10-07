@@ -1,6 +1,12 @@
 import type { PrismaClient } from './generado/client'
 import type { BarberiaModel as FilaBarberia } from './generado/models'
-import { esEstadoBarberia, type Barberia, type BarberiaNueva, type EstadoBarberia } from '../../dominio/modelo/Barberia'
+import {
+  esEstadoBarberia,
+  type Barberia,
+  type BarberiaNueva,
+  type EstadoBarberia,
+  type PerfilBarberia,
+} from '../../dominio/modelo/Barberia'
 import type { BarberiaDAO } from '../../dominio/puertos'
 
 /**
@@ -98,5 +104,18 @@ export class BarberiaDAOPrisma implements BarberiaDAO {
    */
   async cambiarEstado(id: string, estado: EstadoBarberia, motivoSuspension: string | null): Promise<Barberia> {
     return aDominio(await this.prisma.barberia.update({ where: { id }, data: { estado, motivoSuspension } }))
+  }
+
+  /**
+   * Reemplaza las columnas del perfil en una sola sentencia. `estado`, `motivoSuspension` y
+   * `creadoEn` no se tocan.
+   *
+   * @param id Identificador de una barbería que ya existe.
+   * @param perfil Datos del perfil, ya normalizados.
+   * @returns La barbería con el perfil nuevo.
+   * @throws Error de Prisma (P2025) si la barbería no existe; el caso de uso lo comprueba antes.
+   */
+  async actualizarPerfil(id: string, perfil: PerfilBarberia): Promise<Barberia> {
+    return aDominio(await this.prisma.barberia.update({ where: { id }, data: perfil }))
   }
 }

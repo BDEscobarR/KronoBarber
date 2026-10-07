@@ -39,6 +39,13 @@ export interface Barberia {
 /** Una barbería que todavía no existe: el DAO asigna el id al guardarla. */
 export type BarberiaNueva = Omit<Barberia, 'id'>
 
+/**
+ * Datos del perfil: lo que el administrador registra y puede editar después (CAR-01). Se eligen
+ * campo por campo, y no con `Omit`, para que un dato interno nuevo no se vuelva editable por
+ * descuido. El estado y el motivo de suspensión quedan fuera: los maneja el operador (CAR-02).
+ */
+export type PerfilBarberia = Pick<Barberia, 'nombre' | 'descripcion' | 'direccion' | 'ciudad' | 'telefono' | 'correo'>
+
 /** Lo que sale hacia el exterior: la misma barbería, nunca el motivo interno de una suspensión. */
 export interface BarberiaDTO {
   id: string

@@ -7,6 +7,7 @@
  * Las variables del `.env` ya están cargadas: las pone `--env-file` antes de ejecutar este archivo.
  */
 import { RegistrarBarberia } from './aplicacion/casos-uso/RegistrarBarberia'
+import { ActualizarPerfilBarberia } from './aplicacion/casos-uso/ActualizarPerfilBarberia'
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
@@ -21,6 +22,7 @@ const app = crearServidor({
   barberias,
   servicios,
   registrarBarberia: new RegistrarBarberia(barberias),
+  actualizarPerfilBarberia: new ActualizarPerfilBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
   crearServicio: new CrearServicio(barberias, servicios),
 })

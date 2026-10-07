@@ -9,6 +9,11 @@ import {
   BarberiaYaHabilitada,
   HabilitarBarberia,
 } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
+import {
+  ActualizarPerfilBarberia,
+  BarberiaSuspendida,
+  type ActualizacionPerfilBarberiaDTO,
+} from '../../src/aplicacion/casos-uso/ActualizarPerfilBarberia'
 import { aBarberiaDTO, esVisibleParaClientes } from '../../src/dominio/modelo/Barberia'
 import { BarberiaDAOEnMemoria } from '../dobles/BarberiaDAOEnMemoria'
 
@@ -21,12 +26,23 @@ const EL_CLASICO: RegistroBarberiaDTO = {
   correo: ' Contacto@ElClasico.co ',
 }
 
+/** Perfil nuevo para El Clásico: cambian nombre, ubicación, contacto y descripción. */
+const PERFIL_NUEVO: Omit<ActualizacionPerfilBarberiaDTO, 'id'> = {
+  nombre: ' Barbería El Moderno ',
+  descripcion: ' Fades y diseño de barba. ',
+  direccion: 'Carrera 23 # 70-15',
+  ciudad: 'Pereira',
+  telefono: '+57 300 123 4567',
+  correo: ' Hola@ElModerno.co ',
+}
+
 function armar() {
   const barberias = new BarberiaDAOEnMemoria()
   return {
     barberias,
     registrar: new RegistrarBarberia(barberias),
     habilitar: new HabilitarBarberia(barberias),
+    actualizar: new ActualizarPerfilBarberia(barberias),
   }
 }
 
@@ -88,6 +104,76 @@ describe('HabilitarBarberia', () => {
     const { habilitar } = armar()
 
     await expect(habilitar.ejecutar('no-existe')).rejects.toBeInstanceOf(BarberiaNoEncontrada)
+  })
+})
+
+describe('ActualizarPerfilBarberia', () => {
+  it('actualiza nombre, ubicación, contacto y descripción, con los datos normalizados', async () => {
+    const { registrar, actualizar } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+
+    const actualizada = await actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })
+
+    expect(actualizada).toEqual({
+      id: creada.id,
+      nombre: 'Barbería El Moderno',
+      descripcion: 'Fades y diseño de barba.',
+      direccion: 'Carrera 23 # 70-15',
+      ciudad: 'Pereira',
+      telefono: '+573001234567',
+      correo: 'hola@elmoderno.co',
+      estado: 'PENDIENTE_VERIFICACION',
+      motivoSuspension: null,
+    })
+  })
+
+  it('no cambia el estado: una barbería habilitada sigue visible para los clientes', async () => {
+    const { registrar, habilitar, actualizar } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+    await habilitar.ejecutar(creada.id)
+
+    const actualizada = await actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })
+
+    expect(esVisibleParaClientes(actualizada)).toBe(true)
+  })
+
+  it('admite conservar su propio correo aunque cambien las mayúsculas', async () => {
+    const { registrar, actualizar } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+
+    const actualizada = await actualizar.ejecutar({
+      ...EL_CLASICO,
+      id: creada.id,
+      nombre: 'El Clásico de la 65',
+      correo: 'CONTACTO@elclasico.co',
+    })
+
+    expect(actualizada).toMatchObject({ nombre: 'El Clásico de la 65', correo: 'contacto@elclasico.co' })
+  })
+
+  it('rechaza un correo que ya usa otra barbería', async () => {
+    const { registrar, actualizar } = armar()
+    await registrar.ejecutar({ ...EL_CLASICO })
+    const otra = await registrar.ejecutar({ ...PERFIL_NUEVO })
+
+    await expect(
+      actualizar.ejecutar({ ...PERFIL_NUEVO, id: otra.id, correo: 'contacto@elclasico.co' }),
+    ).rejects.toBeInstanceOf(CorreoDeBarberiaYaRegistrado)
+  })
+
+  it('está bloqueada si la barbería está suspendida, y no cambia nada', async () => {
+    const { registrar, actualizar, barberias } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+    await barberias.cambiarEstado(creada.id, 'SUSPENDIDA', 'Incumple la política de precios')
+
+    await expect(actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })).rejects.toBeInstanceOf(BarberiaSuspendida)
+    expect(await barberias.porId(creada.id)).toMatchObject({ nombre: 'Barbería El Clásico', estado: 'SUSPENDIDA' })
+  })
+
+  it('falla si la barbería no existe', async () => {
+    const { actualizar } = armar()
+
+    await expect(actualizar.ejecutar({ ...PERFIL_NUEVO, id: 'no-existe' })).rejects.toBeInstanceOf(BarberiaNoEncontrada)
   })
 })
 
