@@ -7,6 +7,7 @@
 import type { Barberia, BarberiaNueva, EstadoBarberia } from '../modelo/Barberia'
 import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
+import type { HorarioAtencion } from '../modelo/HorarioAtencion'
 
 /**
  * Acceso a datos de las barberías. Lo declara el dominio y lo implementa la infraestructura
@@ -92,6 +93,11 @@ export interface ServicioDAO {
    * @returns Los servicios activos; una lista vacía si no tiene ninguno.
    */
   activosDe(barberiaId: string): Promise<Servicio[]>
+}
+
+/** Persistencia de la configuración completa de atención de cada barbería. */
+export interface HorarioAtencionDAO {
+  reemplazar(horario: HorarioAtencion): Promise<HorarioAtencion>
 }
 
 /**

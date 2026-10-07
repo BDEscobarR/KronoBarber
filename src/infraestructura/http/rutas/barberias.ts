@@ -11,6 +11,7 @@ import {
   type RegistrarBarberia,
   type RegistroBarberiaDTO,
 } from '../../../aplicacion/casos-uso/RegistrarBarberia'
+import { validarConfiguracionHorario, type ConfigurarHorarioAtencion } from '../../../aplicacion/casos-uso/ConfigurarHorarioAtencion'
 
 /** Forma mínima de un correo: algo@algo.algo, sin espacios. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -64,6 +65,8 @@ export interface DependenciasBarberias {
   habilitarBarberia: HabilitarBarberia
   /** Acceso directo para las consultas que no tienen reglas propias. */
   barberias: BarberiaDAO
+  /** Caso de uso de configuración del horario de atención (CAR-05). */
+  configurarHorario: ConfigurarHorarioAtencion
 }
 
 /**
@@ -73,6 +76,7 @@ export interface DependenciasBarberias {
  * - `GET /?ciudad=`: catálogo público, solo habilitadas. Responde 200.
  * - `GET /:id`: detalle en cualquier estado. Responde 200 o 404.
  * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
+ * - `PUT /:id/horario`: reemplaza franjas semanales y cierres por fecha. Responde 200, 400 o 404.
  *
  * Cada handler valida, llama al caso de uso, responde con el DTO y traduce los errores de negocio
  * a códigos HTTP; el resto lo delega a `next(error)`.
@@ -122,6 +126,17 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
       if (error instanceof BarberiaYaHabilitada) return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+
+  rutas.put('/:id/horario', async (req, res, next) => {
+    const datos = validarConfiguracionHorario(req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
+    try {
+      res.json(await deps.configurarHorario.ejecutar(req.params.id, datos))
+    } catch (error) {
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
       next(error)
     }
   })

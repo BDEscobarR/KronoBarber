@@ -206,6 +206,59 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{id}/horario': {
+      put: {
+        tags: ['Barberías'],
+        summary: 'Configura franjas semanales y cierres por fecha (CAR-05)',
+        parameters: [parametroId('id')],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  franjas: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        diaSemana: { type: 'integer', minimum: 0, maximum: 6, description: '0 domingo, 6 sábado' },
+                        horaInicio: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
+                        horaFin: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
+                      },
+                      required: ['diaSemana', 'horaInicio', 'horaFin'],
+                    },
+                  },
+                  cierres: { type: 'array', items: { type: 'string', format: 'date' } },
+                },
+                required: ['franjas', 'cierres'],
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Horario reemplazado',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    barberiaId: { type: 'string', format: 'uuid' },
+                    franjas: { type: 'array', items: { type: 'object' } },
+                    cierres: { type: 'array', items: { type: 'string', format: 'date' } },
+                  },
+                  required: ['barberiaId', 'franjas', 'cierres'],
+                },
+              },
+            },
+          },
+          400: fallo('Franjas solapadas, horas inválidas o cierres con fecha incorrecta'),
+          404: fallo('La barbería no existe'),
+        },
+      },
+    },
     '/barberias/{barberiaId}/servicios': {
       get: {
         tags: ['Servicios'],

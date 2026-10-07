@@ -8,20 +8,24 @@
  */
 import { RegistrarBarberia } from './aplicacion/casos-uso/RegistrarBarberia'
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
+import { ConfigurarHorarioAtencion } from './aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
+import { HorarioAtencionDAOPrisma } from './infraestructura/persistencia/HorarioAtencionDAOPrisma'
 import { crearServidor } from './infraestructura/http/servidor'
 
 const barberias = new BarberiaDAOPrisma(prisma)
 const servicios = new ServicioDAOPrisma(prisma)
+const horarios = new HorarioAtencionDAOPrisma(prisma)
 
 const app = crearServidor({
   barberias,
   servicios,
   registrarBarberia: new RegistrarBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
+  configurarHorario: new ConfigurarHorarioAtencion(barberias, horarios),
   crearServicio: new CrearServicio(barberias, servicios),
 })
 

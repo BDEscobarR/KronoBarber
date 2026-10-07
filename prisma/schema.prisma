@@ -22,6 +22,7 @@ model Barberia {
   creadoEn         DateTime   @default(now())
   servicios        Servicio[]
   usuarios         Usuario[]
+  horariosAtencion HorarioAtencion[]
 
   @@index([estado, ciudad])
 }
@@ -56,4 +57,19 @@ model Usuario {
   creadoEn   DateTime  @default(now())
   // Una barbería con personal no se puede borrar, igual que una con catálogo.
   barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+}
+
+// Una fila representa una franja semanal o un cierre en una fecha concreta. Las franjas tienen
+// diaSemana y horas; los cierres tienen fecha y dejan vacías las horas y el día semanal.
+model HorarioAtencion {
+  id         String    @id @default(uuid()) @db.NVarChar(36)
+  barberiaId String    @db.NVarChar(36)
+  diaSemana  Int?
+  fecha      DateTime? @db.Date
+  horaInicio String?   @db.VarChar(5)
+  horaFin    String?   @db.VarChar(5)
+  barberia   Barberia  @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([barberiaId, diaSemana])
+  @@index([barberiaId, fecha])
 }
