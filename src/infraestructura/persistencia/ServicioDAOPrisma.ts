@@ -68,4 +68,11 @@ export class ServicioDAOPrisma implements ServicioDAO {
     })
     return filas.map(aDominio)
   }
+  async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
+    const fila = await this.prisma.servicio.update({
+      where: { id },
+      data: { activo },
+    });
+    return aDominio(fila);
+  }
 }

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { esVisibleParaClientes } from '../../../dominio/modelo/Barberia'
+import { CambiarEstadoServicio } from '../../../aplicacion/casos-uso/CambiarEstadoServicio';
 import {
   DURACION_MAXIMA_MINUTOS,
   DURACION_MINIMA_MINUTOS,
@@ -49,8 +50,11 @@ function validarServicio(barberiaId: string, cuerpo: unknown): CreacionServicioD
 
 /** Lo que necesitan las rutas del catálogo; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasServicios {
+  
   /** Caso de uso del alta de servicios (CAR-03). */
   crearServicio: CrearServicio
+  /** Caso de uso para activar o desactivar un servicio. */
+  cambiarEstadoServicio: CambiarEstadoServicio
   /** Acceso a las barberías, para comprobar que la vitrina es visible (RES-11). */
   barberias: BarberiaDAO
   /** Acceso directo al catálogo para la consulta pública. */
@@ -96,5 +100,17 @@ export function rutasServicios(deps: DependenciasServicios): Router {
     }
   })
 
+  // Ruta para activar o desactivar un servicio
+  rutas.patch('/:id/estado', async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { activo } = req.body;
+      const servicio = await deps.cambiarEstadoServicio.ejecutar(id, Boolean(activo));
+      res.json(aServicioDTO(servicio));
+    } catch (error) {
+      next(error);
+    }
+  });
+  
   return rutas
 }
