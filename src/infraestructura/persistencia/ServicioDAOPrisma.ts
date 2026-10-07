@@ -41,6 +41,18 @@ export class ServicioDAOPrisma implements ServicioDAO {
     return aDominio(await this.prisma.servicio.create({ data: servicio }))
   }
 
+  /** Actualiza por id y barbería para aplicar el aislamiento multiempresa en la propia escritura. */
+  async actualizar(
+    id: string,
+    barberiaId: string,
+    cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
+  ): Promise<Servicio | null> {
+    const resultado = await this.prisma.servicio.updateMany({ where: { id, barberiaId }, data: cambios })
+    if (resultado.count === 0) return null
+    const fila = await this.prisma.servicio.findUnique({ where: { id } })
+    return fila ? aDominio(fila) : null
+  }
+
   /**
    * Busca por el índice único `(barberiaId, nombre)`. La intercalación de SQL Server no distingue
    * mayúsculas: "Corte clásico" y "CORTE CLÁSICO" son el mismo nombre, que es justo lo que pide

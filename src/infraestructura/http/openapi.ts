@@ -229,6 +229,38 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{barberiaId}/servicios/{id}': {
+      put: {
+        tags: ['Servicios'],
+        summary: 'Actualiza nombre, precio y duración de un servicio (F1-12)',
+        parameters: [parametroId('barberiaId'), parametroId('id')],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  nombre: { type: 'string', minLength: 3, maxLength: 80 },
+                  precio: { type: 'integer', minimum: 1, maximum: PRECIO_MAXIMO },
+                  duracionMinutos: {
+                    type: 'integer', minimum: DURACION_MINIMA_MINUTOS,
+                    maximum: DURACION_MAXIMA_MINUTOS, multipleOf: PASO_DURACION_MINUTOS,
+                  },
+                },
+                required: ['nombre', 'precio', 'duracionMinutos'],
+              },
+            },
+          },
+        },
+        responses: {
+          200: { description: 'Servicio actualizado', content: json('ServicioDTO') },
+          400: fallo('Datos inválidos'),
+          404: fallo('El servicio no existe en esta barbería'),
+          409: fallo('La barbería ya tiene un servicio con ese nombre'),
+        },
+      },
+    },
   },
   components: {
     schemas: {

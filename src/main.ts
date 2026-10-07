@@ -9,6 +9,7 @@
 import { RegistrarBarberia } from './aplicacion/casos-uso/RegistrarBarberia'
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
+import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
@@ -23,6 +24,7 @@ const app = crearServidor({
   registrarBarberia: new RegistrarBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
   crearServicio: new CrearServicio(barberias, servicios),
+  actualizarServicio: new ActualizarServicio(servicios),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */

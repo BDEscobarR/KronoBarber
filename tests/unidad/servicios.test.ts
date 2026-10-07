@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { CrearServicio, ServicioYaExiste, type CreacionServicioDTO } from '../../src/aplicacion/casos-uso/CrearServicio'
+import { ActualizarServicio, ServicioNoEncontrado } from '../../src/aplicacion/casos-uso/ActualizarServicio'
 import { BarberiaNoEncontrada } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
 import { RegistrarBarberia, type RegistroBarberiaDTO } from '../../src/aplicacion/casos-uso/RegistrarBarberia'
 import { PRECIO_MAXIMO, esDuracionValida, esPrecioValido } from '../../src/dominio/modelo/Servicio'
@@ -29,6 +30,7 @@ function armar() {
     servicios,
     registrar: new RegistrarBarberia(barberias),
     crear: new CrearServicio(barberias, servicios),
+    actualizar: new ActualizarServicio(servicios),
   }
 }
 
@@ -66,6 +68,47 @@ describe('CrearServicio', () => {
     await crear.ejecutar({ ...CORTE, barberiaId: primera.id })
 
     await expect(crear.ejecutar({ ...CORTE, barberiaId: segunda.id })).resolves.toMatchObject({ barberiaId: segunda.id })
+  })
+})
+
+describe('ActualizarServicio', () => {
+  it('actualiza nombre, precio y duración incluso si está inactivo, conservando el resto', async () => {
+    const { registrar, crear, actualizar } = armar()
+    const { id: barberiaId } = await registrar.ejecutar(barberia('editar@clasico.co'))
+    const creado = await crear.ejecutar({ ...CORTE, barberiaId })
+    creado.activo = false
+
+    const actualizado = await actualizar.ejecutar(barberiaId, creado.id, {
+      nombre: '  Corte premium ', precio: 35000, duracionMinutos: 45,
+    })
+
+    expect(actualizado).toMatchObject({
+      id: creado.id, barberiaId, nombre: 'Corte premium', descripcion: CORTE.descripcion,
+      precio: 35000, duracionMinutos: 45, activo: false,
+    })
+  })
+
+  it('no actualiza un servicio que pertenece a otra barbería', async () => {
+    const { registrar, crear, actualizar } = armar()
+    const primera = await registrar.ejecutar(barberia('primera@clasico.co'))
+    const segunda = await registrar.ejecutar(barberia('segunda@clasico.co'))
+    const creado = await crear.ejecutar({ ...CORTE, barberiaId: primera.id })
+
+    await expect(actualizar.ejecutar(segunda.id, creado.id, {
+      nombre: 'Corte premium', precio: 35000, duracionMinutos: 45,
+    })).rejects.toBeInstanceOf(ServicioNoEncontrado)
+    expect(creado.nombre).toBe('Corte clásico')
+  })
+
+  it('rechaza un nombre ya usado por otro servicio de la barbería', async () => {
+    const { registrar, crear, actualizar } = armar()
+    const { id: barberiaId } = await registrar.ejecutar(barberia('duplicado@clasico.co'))
+    const primero = await crear.ejecutar({ ...CORTE, barberiaId })
+    const segundo = await crear.ejecutar({ ...CORTE, barberiaId, nombre: 'Barba clásica' })
+
+    await expect(actualizar.ejecutar(barberiaId, segundo.id, {
+      nombre: primero.nombre, precio: 30000, duracionMinutos: 30,
+    })).rejects.toBeInstanceOf(ServicioYaExiste)
   })
 })
 
