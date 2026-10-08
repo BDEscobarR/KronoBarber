@@ -11,6 +11,10 @@ import {
   type RegistrarBarberia,
   type RegistroBarberiaDTO,
 } from '../../../aplicacion/casos-uso/RegistrarBarberia'
+import {
+  BarberiaYaSuspendida,
+  type SuspenderBarberia,
+} from '../../../aplicacion/casos-uso/SuspenderBarberia'
 
 /** Forma mínima de un correo: algo@algo.algo, sin espacios. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -62,6 +66,8 @@ export interface DependenciasBarberias {
   registrarBarberia: RegistrarBarberia
   /** Caso de uso de la habilitación (CAR-02). */
   habilitarBarberia: HabilitarBarberia
+  
+  suspenderBarberia: SuspenderBarberia
   /** Acceso directo para las consultas que no tienen reglas propias. */
   barberias: BarberiaDAO
 }
@@ -129,6 +135,17 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
       if (error instanceof BarberiaYaHabilitada) return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+  
+  // Acción del operador con efecto propio: POST a un sub-recurso de suspensión.
+  rutas.post('/:id/suspension', async (req, res, next) => {
+    try {
+      res.json(aBarberiaDTO(await deps.suspenderBarberia.ejecutar(req.params.id)))
+    } catch (error) {
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
+      if (error instanceof BarberiaYaSuspendida) return void res.status(409).json({ error: error.message })
       next(error)
     }
   })
