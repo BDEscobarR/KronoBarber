@@ -9,6 +9,7 @@
 import { RegistrarBarberia } from './aplicacion/casos-uso/RegistrarBarberia'
 import { ActualizarPerfilBarberia } from './aplicacion/casos-uso/ActualizarPerfilBarberia'
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
+import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
@@ -24,6 +25,7 @@ const app = crearServidor({
   registrarBarberia: new RegistrarBarberia(barberias),
   actualizarPerfilBarberia: new ActualizarPerfilBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
+  suspenderBarberia: new SuspenderBarberia(barberias),
   crearServicio: new CrearServicio(barberias, servicios),
 })
 

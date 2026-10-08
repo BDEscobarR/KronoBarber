@@ -174,11 +174,25 @@ export const openapi = {
     '/barberias': {
       get: {
         tags: ['Barberías'],
-        summary: 'Catálogo público: solo barberías habilitadas (CAR-07, RES-11)',
+        summary:
+          'Catálogo público (CAR-07, RES-11) o, con `estado`, la bandeja del operador (CAR-19)',
         parameters: [
           { name: 'ciudad', in: 'query', required: false, schema: { type: 'string' }, example: 'Manizales' },
+          {
+            name: 'estado',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ESTADOS_BARBERIA },
+            description:
+              'Bandeja del operador (CAR-19): filtra por este estado en vez del catálogo público de ' +
+              'habilitadas. Un valor fuera de `ESTADOS_BARBERIA` responde 400.',
+            example: 'PENDIENTE_VERIFICACION',
+          },
         ],
-        responses: { 200: { description: 'Barberías habilitadas, por nombre', content: lista('BarberiaDTO') } },
+        responses: {
+          200: { description: 'Barberías filtradas, por nombre', content: lista('BarberiaDTO') },
+          400: fallo('Estado desconocido'),
+        },
       },
       post: {
         tags: ['Barberías'],
@@ -229,11 +243,27 @@ export const openapi = {
     '/barberias/{barberiaId}/servicios': {
       get: {
         tags: ['Servicios'],
-        summary: 'Catálogo público de una barbería: solo servicios activos, y solo si está habilitada',
-        parameters: [parametroId('barberiaId')],
+        summary: 'Catálogo de una barbería: la vitrina pública o, con todos=true, el de gestión (CAR-03)',
+        description:
+          'Sin `todos`: vitrina pública, solo servicios activos y solo si la barbería está habilitada (CAR-07, RES-11). ' +
+          'Con `todos=true`: catálogo de gestión, también los inactivos, en cualquier estado de la barbería.',
+        parameters: [
+          parametroId('barberiaId'),
+          {
+            name: 'todos',
+            in: 'query',
+            required: false,
+            description: '`true` incluye los servicios inactivos (catálogo de gestión).',
+            schema: { type: 'boolean', default: false },
+          },
+        ],
         responses: {
-          200: { description: 'Servicios activos, por nombre', content: lista('ServicioDTO') },
-          404: fallo('La barbería no existe o no está habilitada'),
+          200: {
+            description: 'Servicios por nombre: solo los activos o, con todos=true, todos con su campo `activo`',
+            content: lista('ServicioDTO'),
+          },
+          400: fallo('todos no es true ni false'),
+          404: fallo('La barbería no existe o, sin todos, no está habilitada'),
         },
       },
       post: {
