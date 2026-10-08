@@ -242,7 +242,7 @@ KronoBarber/
 ├── src/
 │   ├── dominio/                       el negocio: no importa nada de afuera
 │   │   ├── modelo/
-│   │   │   ├── Barberia.ts            entidad + EstadoBarberia + BarberiaDTO + aBarberiaDTO()
+│   │   │   ├── Barberia.ts            entidad + EstadoBarberia + PerfilBarberia + BarberiaDTO + aBarberiaDTO()
 │   │   │   ├── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
 │   │   │   ├── Usuario.ts             entidad + RolUsuario + perteneceABarberia() + UsuarioDTO (sin claveHash)
 │   │   │   └── HorarioAtencion.ts     entidad + DiaSemana + Franja + seSolapan() (semilla de la regla 5)
@@ -252,6 +252,7 @@ KronoBarber/
 │   ├── aplicacion/                    orquestación de las reglas
 │   │   └── casos-uso/
 │   │       ├── RegistrarBarberia.ts   caso de uso + RegistroBarberiaDTO + CorreoDeBarberiaYaRegistrado
+│   │       ├── ActualizarPerfilBarberia.ts  caso de uso + ActualizacionPerfilBarberiaDTO + BarberiaSuspendida
 │   │       ├── HabilitarBarberia.ts   caso de uso + BarberiaNoEncontrada + BarberiaYaHabilitada
 │   │       └── CrearServicio.ts       caso de uso + CreacionServicioDTO + ServicioYaExiste
 │   │
@@ -444,6 +445,7 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `POST` | `/barberias` | Recibe `RegistroBarberiaDTO` y responde `201` con `BarberiaDTO` en `PENDIENTE_VERIFICACION` (CAR-01) | `400`; `409` correo repetido |
 | `GET` | `/barberias?ciudad=` | Catálogo público: **solo habilitadas** (CAR-07, RES-11) | Ninguno |
 | `GET` | `/barberias/:id` | Detalle, en cualquier estado | `404` |
+| `PUT` | `/barberias/:id` | Recibe `ActualizacionPerfilBarberiaDTO` (los mismos campos del registro) y responde `200` con `BarberiaDTO`: reemplaza nombre, ubicación, contacto y descripción, sin cambiar el estado (CAR-01) | `400`; `404`; `409` suspendida o correo de otra barbería |
 | `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404`; `409` ya habilitada |
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
 | `GET` | `/barberias/:barberiaId/servicios?todos=` | Sin `todos`, vitrina: servicios activos, **solo si la barbería está habilitada**. Con `todos=true`, catálogo de gestión: también los inactivos (campo `activo`), en cualquier estado de la barbería (CAR-03) | `400` `todos` no es `true` ni `false`; `404` |
@@ -458,6 +460,8 @@ Prueba de humo (Git Bash; en PowerShell usar `curl.exe`, o directamente *Try it 
 ```bash
 curl -X POST http://localhost:3000/api/barberias -H "Content-Type: application/json" \
   -d '{"nombre":"Barbería El Clásico","direccion":"Calle 65 # 23-10","ciudad":"Manizales","telefono":"(606) 887-1234","correo":"contacto@elclasico.co"}'
+curl -X PUT http://localhost:3000/api/barberias/<ID> -H "Content-Type: application/json" \
+  -d '{"nombre":"Barbería El Clásico","descripcion":"Cortes clásicos y arreglo de barba.","direccion":"Calle 65 # 23-10","ciudad":"Manizales","telefono":"(606) 887-1234","correo":"contacto@elclasico.co"}'
 curl -X POST http://localhost:3000/api/barberias/<ID>/habilitacion
 curl -X POST http://localhost:3000/api/barberias/<ID>/servicios -H "Content-Type: application/json" \
   -d '{"nombre":"Corte clásico","precio":25000,"duracionMinutos":30}'
