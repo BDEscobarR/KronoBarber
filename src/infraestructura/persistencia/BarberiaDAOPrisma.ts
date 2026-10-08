@@ -88,6 +88,17 @@ export class BarberiaDAOPrisma implements BarberiaDAO {
   }
 
   /**
+   * Bandeja del operador (CAR-19): todas las barberías en un estado dado, sin importar la ciudad.
+   *
+   * @param estado Estado por el que filtrar.
+   * @returns Las barberías en ese estado, ordenadas por nombre.
+   */
+  async porEstado(estado: EstadoBarberia): Promise<Barberia[]> {
+    const filas = await this.prisma.barberia.findMany({ where: { estado }, orderBy: { nombre: 'asc' } })
+    return filas.map(aDominio)
+  }
+
+  /**
    * Actualiza el estado y el motivo de suspensión en una sola sentencia.
    *
    * @param id Identificador de una barbería que ya existe.

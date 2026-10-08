@@ -48,15 +48,29 @@ function validarServicio(barberiaId: string, cuerpo: unknown): CreacionServicioD
   }
 }
 
+/**
+ * Validación de frontera del parámetro `todos`. Sin él se entiende `false`; un valor distinto de
+ * `true` o `false` es un error del cliente, no una vitrina silenciosa.
+ *
+ * @param valor Valor de `req.query['todos']`, sin validar.
+ * @returns `true` para el catálogo de gestión, `false` para la vitrina, o el mensaje de error para
+ *   responder un 400.
+ */
+function validarTodos(valor: unknown): boolean | string {
+  if (valor === undefined || valor === 'false') return false
+  if (valor === 'true') return true
+  return 'todos inválido (true o false)'
+}
+
 /** Lo que necesitan las rutas del catálogo; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasServicios {
   /** Caso de uso del alta de servicios (CAR-03). */
   crearServicio: CrearServicio
   /** Caso de uso de edición del catálogo (F1-12). */
   actualizarServicio: ActualizarServicio
-  /** Acceso a las barberías, para comprobar que la vitrina es visible (RES-11). */
+  /** Acceso a las barberías, para comprobar que existen y que la vitrina es visible (RES-11). */
   barberias: BarberiaDAO
-  /** Acceso directo al catálogo para la consulta pública. */
+  /** Acceso directo al catálogo para la vitrina y el catálogo de gestión. */
   servicios: ServicioDAO
 }
 
@@ -67,7 +81,7 @@ export interface DependenciasServicios {
  * - `POST /:barberiaId/servicios`: crea un servicio. Responde 201, 400, 404 o 409.
  * - `PUT /:barberiaId/servicios/:id`: actualiza nombre, precio y duración. Responde 200, 400, 404 o 409.
  * - `GET /:barberiaId/servicios`: vitrina con los servicios activos de una barbería habilitada.
- *   Responde 200 o 404.
+ *   Con `?todos=true`, catálogo de gestión: también los inactivos. Responde 200, 400 o 404.
  *
  * @param deps Caso de uso y DAO que usan los handlers.
  * @returns El router de Express.
@@ -107,14 +121,20 @@ export function rutasServicios(deps: DependenciasServicios): Router {
     }
   })
 
-  // Vitrina del cliente (CAR-07): el catálogo de una barbería no habilitada no existe
-  // para nadie de afuera (RES-11), así que se responde igual que si no existiera.
+  // Sin `todos`, vitrina del cliente (CAR-07): el catálogo de una barbería no habilitada no
+  // existe para nadie de afuera (RES-11), así que se responde igual que si no existiera.
+  // Con `todos=true`, catálogo de gestión (CAR-03): incluye los inactivos y vale en cualquier
+  // estado, porque configurar el catálogo es parte de la puesta en marcha. Hoy es abierto como
+  // el resto de la API; exigir ADMINISTRADOR de esa barbería llega con la Fase 4 (CAR-17).
   rutas.get('/:barberiaId/servicios', async (req, res, next) => {
+    const todos = validarTodos(req.query['todos'])
+    if (typeof todos === 'string') return void res.status(400).json({ error: todos })
     try {
       const barberia = await deps.barberias.porId(req.params.barberiaId)
-      if (!barberia || !esVisibleParaClientes(barberia))
+      if (!barberia || (!todos && !esVisibleParaClientes(barberia)))
         return void res.status(404).json({ error: 'Barbería no encontrada' })
-      res.json((await deps.servicios.activosDe(barberia.id)).map(aServicioDTO))
+      const servicios = todos ? await deps.servicios.deBarberia(barberia.id) : await deps.servicios.activosDe(barberia.id)
+      res.json(servicios.map(aServicioDTO))
     } catch (error) {
       next(error)
     }

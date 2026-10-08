@@ -8,6 +8,7 @@
  */
 import { RegistrarBarberia } from './aplicacion/casos-uso/RegistrarBarberia'
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
+import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
@@ -23,6 +24,7 @@ const app = crearServidor({
   servicios,
   registrarBarberia: new RegistrarBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
+  suspenderBarberia: new SuspenderBarberia(barberias),
   crearServicio: new CrearServicio(barberias, servicios),
   actualizarServicio: new ActualizarServicio(servicios),
 })

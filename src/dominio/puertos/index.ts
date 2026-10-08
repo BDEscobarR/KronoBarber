@@ -5,6 +5,7 @@
 // - Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
 
 import type { Barberia, BarberiaNueva, EstadoBarberia } from '../modelo/Barberia'
+import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
 import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
@@ -49,6 +50,14 @@ export interface BarberiaDAO {
   habilitadas(ciudad: string | null): Promise<Barberia[]>
 
   /**
+   * Bandeja del operador (CAR-19): las barberías en un estado dado, ordenadas por nombre.
+   *
+   * @param estado Estado por el que filtrar.
+   * @returns Las barberías en ese estado; una lista vacía si no hay ninguna.
+   */
+  porEstado(estado: EstadoBarberia): Promise<Barberia[]>
+
+  /**
    * Cambia el estado de una barbería. Qué transiciones están permitidas lo decide el caso de uso,
    * no el DAO.
    *
@@ -58,6 +67,28 @@ export interface BarberiaDAO {
    * @returns La barbería con el estado nuevo.
    */
   cambiarEstado(id: string, estado: EstadoBarberia, motivoSuspension: string | null): Promise<Barberia>
+}
+
+/**
+ * Acceso a datos del horario de atención. Lo declara el dominio y lo implementa la
+ * infraestructura (`HorarioAtencionDAOPrisma`); las pruebas usan un doble en memoria.
+ */
+export interface HorarioAtencionDAO {
+  /**
+   * Persiste un renglón del horario: una franja semanal recurrente o un cierre puntual.
+   *
+   * @param horario Datos completos, sin id.
+   * @returns El renglón guardado, con el id que le asignó la base de datos.
+   */
+  guardar(horario: HorarioAtencionNuevo): Promise<HorarioAtencion>
+
+  /**
+   * Horario completo de una barbería: sus franjas semanales y sus cierres puntuales.
+   *
+   * @param barberiaId Barbería dueña del horario.
+   * @returns Los renglones del horario; una lista vacía si no tiene ninguno.
+   */
+  deBarberia(barberiaId: string): Promise<HorarioAtencion[]>
 }
 
 /**
@@ -99,6 +130,15 @@ export interface ServicioDAO {
    * @returns Los servicios activos; una lista vacía si no tiene ninguno.
    */
   activosDe(barberiaId: string): Promise<Servicio[]>
+
+  /**
+   * Catálogo de gestión de una barbería (CAR-03): todos sus servicios, activos e inactivos,
+   * ordenados por nombre. El administrador ve también lo que retiró de la vitrina.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @returns Todos los servicios de la barbería; una lista vacía si no tiene ninguno.
+   */
+  deBarberia(barberiaId: string): Promise<Servicio[]>
 }
 
 /**

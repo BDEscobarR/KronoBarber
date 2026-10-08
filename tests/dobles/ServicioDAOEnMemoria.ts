@@ -30,4 +30,8 @@ export class ServicioDAOEnMemoria implements ServicioDAO {
   async activosDe(barberiaId: string): Promise<Servicio[]> {
     return this.filas.filter((s) => s.barberiaId === barberiaId && s.activo)
   }
+
+  async deBarberia(barberiaId: string): Promise<Servicio[]> {
+    return this.filas.filter((s) => s.barberiaId === barberiaId)
+  }
 }
