@@ -1,4 +1,5 @@
 import { ESTADOS_BARBERIA } from '../../dominio/modelo/Barberia'
+import { DIAS_SEMANA } from '../../dominio/modelo/HorarioAtencion'
 import {
   DURACION_MAXIMA_MINUTOS,
   DURACION_MINIMA_MINUTOS,
@@ -93,6 +94,39 @@ const creacionServicio = {
     },
   },
   required: ['nombre', 'precio', 'duracionMinutos'],
+}
+
+/** Patrón de una hora `HH:MM`, de `00:00` a `23:59`: el mismo que comprueba `esHoraValida`. */
+const HORA = '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+
+/** Esquema de `ConfiguracionHorarioDTO`: el horario de atención completo de una barbería. */
+const configuracionHorario = {
+  type: 'object',
+  description:
+    'Horario de atención completo (`ConfiguracionHorarioDTO`). Reemplaza al anterior: lo que no viene deja ' +
+    'de existir. `barberiaId` solo sale en la respuesta; en la petición se toma de la URL.',
+  properties: {
+    barberiaId: { type: 'string', format: 'uuid', readOnly: true },
+    franjas: {
+      type: 'array',
+      description: 'Franjas semanales. Varias para el mismo día permiten la jornada partida, sin solaparse.',
+      items: {
+        type: 'object',
+        properties: {
+          diaSemana: { type: 'string', enum: DIAS_SEMANA, example: 'LUNES' },
+          inicio: { type: 'string', pattern: HORA, example: '08:00' },
+          fin: { type: 'string', pattern: HORA, description: 'Posterior a `inicio`.', example: '12:00' },
+        },
+        required: ['diaSemana', 'inicio', 'fin'],
+      },
+    },
+    cierres: {
+      type: 'array',
+      description: 'Fechas en que la barbería no atiende, sin importar su franja semanal. Sin repetir.',
+      items: { type: 'string', format: 'date', example: '2026-12-25' },
+    },
+  },
+  required: ['franjas', 'cierres'],
 }
 
 /**
@@ -220,6 +254,19 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{id}/horario': {
+      put: {
+        tags: ['Barberías'],
+        summary: 'Configura el horario de atención: franjas semanales y cierres por fecha (CAR-05)',
+        parameters: [parametroId('id')],
+        requestBody: { required: true, content: json('ConfiguracionHorarioDTO') },
+        responses: {
+          200: { description: 'Horario guardado en lugar del anterior', content: json('ConfiguracionHorarioDTO') },
+          400: fallo('Formato inválido, franja que no empieza antes de terminar, franjas solapadas o cierre repetido'),
+          404: fallo('La barbería no existe'),
+        },
+      },
+    },
     '/barberias/{barberiaId}/servicios': {
       get: {
         tags: ['Servicios'],
@@ -298,6 +345,7 @@ export const openapi = {
       RegistroBarberiaDTO: registroBarberia,
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
+      ConfiguracionHorarioDTO: configuracionHorario,
       Error: error,
     },
   },
