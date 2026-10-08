@@ -446,7 +446,7 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `GET` | `/barberias/:id` | Detalle, en cualquier estado | `404` |
 | `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404`; `409` ya habilitada |
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
-| `GET` | `/barberias/:barberiaId/servicios` | Vitrina: servicios activos, **solo si la barbería está habilitada** | `404` |
+| `GET` | `/barberias/:barberiaId/servicios?todos=` | Sin `todos`, vitrina: servicios activos, **solo si la barbería está habilitada**. Con `todos=true`, catálogo de gestión: también los inactivos (campo `activo`), en cualquier estado de la barbería (CAR-03) | `400` `todos` no es `true` ni `false`; `404` |
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
 existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
@@ -462,6 +462,7 @@ curl -X POST http://localhost:3000/api/barberias/<ID>/habilitacion
 curl -X POST http://localhost:3000/api/barberias/<ID>/servicios -H "Content-Type: application/json" \
   -d '{"nombre":"Corte clásico","precio":25000,"duracionMinutos":30}'
 curl http://localhost:3000/api/barberias/<ID>/servicios
+curl "http://localhost:3000/api/barberias/<ID>/servicios?todos=true"
 ```
 
 ### Problemas frecuentes
