@@ -1,4 +1,4 @@
-import type { Barberia, BarberiaNueva, EstadoBarberia } from '../../src/dominio/modelo/Barberia'
+import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../../src/dominio/modelo/Barberia'
 import type { BarberiaDAO } from '../../src/dominio/puertos'
 
 export class BarberiaDAOEnMemoria implements BarberiaDAO {
@@ -32,6 +32,15 @@ export class BarberiaDAOEnMemoria implements BarberiaDAO {
     if (!fila) throw new Error(`No existe la barbería ${id}`)
     // Se reemplaza, como haría la BD: quien guardó la versión anterior no la ve cambiar.
     const actualizada = { ...fila, estado, motivoSuspension }
+    this.filas[indice] = actualizada
+    return actualizada
+  }
+
+  async actualizarPerfil(id: string, perfil: PerfilBarberia): Promise<Barberia> {
+    const indice = this.filas.findIndex((b) => b.id === id)
+    const fila = this.filas[indice]
+    if (!fila) throw new Error(`No existe la barbería ${id}`)
+    const actualizada = { ...fila, ...perfil }
     this.filas[indice] = actualizada
     return actualizada
   }
