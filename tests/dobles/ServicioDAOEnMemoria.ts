@@ -34,4 +34,12 @@ export class ServicioDAOEnMemoria implements ServicioDAO {
   async deBarberia(barberiaId: string): Promise<Servicio[]> {
     return this.filas.filter((s) => s.barberiaId === barberiaId)
   }
+
+  /** Imita a Prisma: `update` lanza si el servicio no existe. */
+  async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
+    const fila = this.filas.find((s) => s.id === id)
+    if (!fila) throw new Error(`No existe el servicio ${id}`)
+    fila.activo = activo
+    return fila
+  }
 }

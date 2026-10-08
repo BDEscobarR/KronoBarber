@@ -125,6 +125,10 @@ export interface ServicioDAO {
    * @returns El servicio guardado, con el id que le asignó la base de datos.
    */
   guardar(servicio: ServicioNuevo): Promise<Servicio>
+  
+  porNombre(barberiaId: string, nombre: string): Promise<Servicio | null>;
+  activosDe(barberiaId: string): Promise<Servicio[]>;
+  cambiarEstado(id: string, activo: boolean): Promise<Servicio>;
 
   /** Actualiza los campos editables solo si el servicio pertenece a la barbería indicada. */
   actualizar(
