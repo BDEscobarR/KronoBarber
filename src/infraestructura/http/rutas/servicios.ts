@@ -16,6 +16,7 @@ import {
   type CrearServicio,
   type CreacionServicioDTO,
 } from '../../../aplicacion/casos-uso/CrearServicio'
+import { ActualizarServicio, ServicioNoEncontrado } from '../../../aplicacion/casos-uso/ActualizarServicio'
 import { BarberiaNoEncontrada } from '../../../aplicacion/casos-uso/HabilitarBarberia'
 
 /**
@@ -67,6 +68,8 @@ export interface DependenciasServicios {
   
   /** Caso de uso del alta de servicios (CAR-03). */
   crearServicio: CrearServicio
+  /** Caso de uso de edición del catálogo (F1-12). */
+  actualizarServicio: ActualizarServicio
   /** Caso de uso para activar o desactivar un servicio. */
   cambiarEstadoServicio: CambiarEstadoServicio
   /** Acceso a las barberías, para comprobar que existen y que la vitrina es visible (RES-11). */
@@ -80,6 +83,7 @@ export interface DependenciasServicios {
  * barbería en la URL:
  *
  * - `POST /:barberiaId/servicios`: crea un servicio. Responde 201, 400, 404 o 409.
+ * - `PUT /:barberiaId/servicios/:id`: actualiza nombre, precio y duración. Responde 200, 400, 404 o 409.
  * - `GET /:barberiaId/servicios`: vitrina con los servicios activos de una barbería habilitada.
  *   Con `?todos=true`, catálogo de gestión: también los inactivos. Responde 200, 400 o 404.
  *
@@ -96,6 +100,26 @@ export function rutasServicios(deps: DependenciasServicios): Router {
       res.status(201).json(aServicioDTO(await deps.crearServicio.ejecutar(datos)))
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
+      if (error instanceof ServicioYaExiste) return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+
+  rutas.put('/:barberiaId/servicios/:id', async (req, res, next) => {
+    const d = (req.body ?? {}) as Record<string, unknown>
+    if (typeof d['nombre'] !== 'string' || d['nombre'].trim().length < 3 || d['nombre'].trim().length > 80)
+      return void res.status(400).json({ error: 'nombre requerido (entre 3 y 80 caracteres)' })
+    if (!esPrecioValido(d['precio'])) return void res.status(400).json({ error: `precio inválido (pesos enteros entre 1 y ${PRECIO_MAXIMO})` })
+    if (!esDuracionValida(d['duracionMinutos']))
+      return void res.status(400).json({
+        error: `duracionMinutos inválida (entre ${DURACION_MINIMA_MINUTOS} y ${DURACION_MAXIMA_MINUTOS}, múltiplo de ${PASO_DURACION_MINUTOS})`,
+      })
+    try {
+      res.json(aServicioDTO(await deps.actualizarServicio.ejecutar(req.params.barberiaId, req.params.id, {
+        nombre: d['nombre'], precio: d['precio'], duracionMinutos: d['duracionMinutos'],
+      })))
+    } catch (error) {
+      if (error instanceof ServicioNoEncontrado) return void res.status(404).json({ error: error.message })
       if (error instanceof ServicioYaExiste) return void res.status(409).json({ error: error.message })
       next(error)
     }

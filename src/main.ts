@@ -12,6 +12,7 @@ import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
 import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
 import { ConfigurarHorarioAtencion } from './aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
+import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { CambiarEstadoServicio } from './aplicacion/casos-uso/CambiarEstadoServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
@@ -32,6 +33,7 @@ const app = crearServidor({
   suspenderBarberia: new SuspenderBarberia(barberias),
   configurarHorario: new ConfigurarHorarioAtencion(barberias, horarios),
   crearServicio: new CrearServicio(barberias, servicios),
+  actualizarServicio: new ActualizarServicio(servicios),
   cambiarEstadoServicio: new CambiarEstadoServicio(servicios),
 })
 

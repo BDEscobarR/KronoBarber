@@ -130,6 +130,13 @@ export interface ServicioDAO {
   activosDe(barberiaId: string): Promise<Servicio[]>;
   cambiarEstado(id: string, activo: boolean): Promise<Servicio>;
 
+  /** Actualiza los campos editables solo si el servicio pertenece a la barbería indicada. */
+  actualizar(
+    id: string,
+    barberiaId: string,
+    cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
+  ): Promise<Servicio | null>
+
   /**
    * Busca un servicio por su nombre dentro de una barbería. El nombre es único dentro de la
    * barbería y se compara sin distinguir mayúsculas.
