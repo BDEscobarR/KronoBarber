@@ -55,6 +55,14 @@ const registroBarberia = {
   required: ['nombre', 'direccion', 'ciudad', 'telefono', 'correo'],
 }
 
+/** Esquema de `ActualizacionPerfilBarberiaDTO`: los mismos campos y límites del registro. */
+const actualizacionPerfilBarberia = {
+  ...registroBarberia,
+  description:
+    'Perfil completo de la barbería (`ActualizacionPerfilBarberiaDTO`): reemplaza nombre, descripción, ' +
+    'ubicación y contacto. No cambia el estado. Una descripción omitida queda vacía.',
+}
+
 /** Esquema de `ServicioDTO`. */
 const servicio = {
   type: 'object',
@@ -241,6 +249,18 @@ export const openapi = {
           404: fallo('No existe'),
         },
       },
+      put: {
+        tags: ['Barberías'],
+        summary: 'Actualiza el perfil: nombre, ubicación, contacto y descripción (CAR-01)',
+        parameters: [parametroId('id')],
+        requestBody: { required: true, content: json('ActualizacionPerfilBarberiaDTO') },
+        responses: {
+          200: { description: 'Perfil actualizado, con el mismo estado', content: json('BarberiaDTO') },
+          400: fallo('Datos inválidos'),
+          404: fallo('No existe'),
+          409: fallo('La barbería está suspendida o el correo ya lo usa otra barbería'),
+        },
+      },
     },
     '/barberias/{id}/habilitacion': {
       post: {
@@ -343,6 +363,7 @@ export const openapi = {
     schemas: {
       BarberiaDTO: barberia,
       RegistroBarberiaDTO: registroBarberia,
+      ActualizacionPerfilBarberiaDTO: actualizacionPerfilBarberia,
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
       ConfiguracionHorarioDTO: configuracionHorario,
