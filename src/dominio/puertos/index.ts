@@ -49,6 +49,14 @@ export interface BarberiaDAO {
   habilitadas(ciudad: string | null): Promise<Barberia[]>
 
   /**
+   * Bandeja del operador (CAR-19): las barberías en un estado dado, ordenadas por nombre.
+   *
+   * @param estado Estado por el que filtrar.
+   * @returns Las barberías en ese estado; una lista vacía si no hay ninguna.
+   */
+  porEstado(estado: EstadoBarberia): Promise<Barberia[]>
+
+  /**
    * Cambia el estado de una barbería. Qué transiciones están permitidas lo decide el caso de uso,
    * no el DAO.
    *
