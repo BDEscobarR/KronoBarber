@@ -68,6 +68,18 @@ export class ServicioDAOPrisma implements ServicioDAO {
     })
     return filas.map(aDominio)
   }
+
+  /**
+   * Trae todos los servicios de la barbería, sin filtrar por `activo`.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @returns Los servicios activos e inactivos, ordenados por nombre.
+   */
+  async deBarberia(barberiaId: string): Promise<Servicio[]> {
+    const filas = await this.prisma.servicio.findMany({ where: { barberiaId }, orderBy: { nombre: 'asc' } })
+    return filas.map(aDominio)
+  }
+
   async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
     const fila = await this.prisma.servicio.update({
       where: { id },

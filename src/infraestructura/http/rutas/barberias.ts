@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { aBarberiaDTO, normalizarTelefono } from '../../../dominio/modelo/Barberia'
+import { aBarberiaDTO, esEstadoBarberia, normalizarTelefono } from '../../../dominio/modelo/Barberia'
 import type { BarberiaDAO } from '../../../dominio/puertos'
 import {
   BarberiaNoEncontrada,
@@ -77,6 +77,7 @@ export interface DependenciasBarberias {
  *
  * - `POST /`: registra una barbería. Responde 201, 400 o 409.
  * - `GET /?ciudad=`: catálogo público, solo habilitadas. Responde 200.
+ * - `GET /?estado=`: bandeja del operador (CAR-19), barberías en ese estado. Responde 200 o 400.
  * - `GET /:id`: detalle en cualquier estado. Responde 200 o 404.
  * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
  *
@@ -100,9 +101,15 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
     }
   })
 
-  // Catálogo público (CAR-07): una barbería no habilitada no es visible (RES-11).
+  // Catálogo público (CAR-07) o, con `estado`, la bandeja del operador (CAR-19).
   rutas.get('/', async (req, res, next) => {
     try {
+      const estado = req.query['estado']
+      if (typeof estado === 'string') {
+        if (!esEstadoBarberia(estado)) return void res.status(400).json({ error: `Estado desconocido: ${estado}` })
+        return void res.json((await deps.barberias.porEstado(estado)).map(aBarberiaDTO))
+      }
+      // Catálogo público (CAR-07): una barbería no habilitada no es visible (RES-11).
       const ciudad = req.query['ciudad']
       const filtro = typeof ciudad === 'string' && ciudad.trim() ? ciudad.trim() : null
       res.json((await deps.barberias.habilitadas(filtro)).map(aBarberiaDTO))
