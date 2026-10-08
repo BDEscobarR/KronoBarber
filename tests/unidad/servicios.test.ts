@@ -69,6 +69,50 @@ describe('CrearServicio', () => {
   })
 })
 
+describe('vitrina y catálogo de gestión', () => {
+  /** Barbería con un servicio activo y uno retirado; `DesactivarServicio` todavía no existe, así que se guarda inactivo. */
+  async function conUnRetirado() {
+    const { registrar, crear, servicios } = armar()
+    const { id: barberiaId } = await registrar.ejecutar(barberia('a@clasico.co'))
+    await crear.ejecutar({ ...CORTE, barberiaId })
+    await servicios.guardar({ ...CORTE, barberiaId, nombre: 'Afeitado con toalla caliente', activo: false })
+    return { registrar, crear, servicios, barberiaId }
+  }
+
+  it('la vitrina sigue mostrando solo los servicios activos (CAR-07)', async () => {
+    const { servicios, barberiaId } = await conUnRetirado()
+
+    const vitrina = await servicios.activosDe(barberiaId)
+
+    expect(vitrina.map((s) => s.nombre)).toEqual(['Corte clásico'])
+  })
+
+  it('el catálogo de gestión incluye los inactivos con su estado (CAR-03)', async () => {
+    const { servicios, barberiaId } = await conUnRetirado()
+
+    const catalogo = await servicios.deBarberia(barberiaId)
+
+    expect(catalogo).toHaveLength(2)
+    expect(catalogo).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ nombre: 'Corte clásico', activo: true }),
+        expect.objectContaining({ nombre: 'Afeitado con toalla caliente', activo: false }),
+      ]),
+    )
+  })
+
+  it('el catálogo de gestión no mezcla servicios de otra barbería (RES-02)', async () => {
+    const { registrar, crear, servicios, barberiaId } = await conUnRetirado()
+    const { id: otra } = await registrar.ejecutar(barberia('b@clasico.co'))
+    await crear.ejecutar({ ...CORTE, barberiaId: otra })
+
+    const catalogo = await servicios.deBarberia(barberiaId)
+
+    expect(catalogo.every((s) => s.barberiaId === barberiaId)).toBe(true)
+    expect(await servicios.deBarberia(otra)).toHaveLength(1)
+  })
+})
+
 describe('reglas de precio y duración', () => {
   it('el precio son pesos enteros mayores que cero y hasta el tope', () => {
     expect(esPrecioValido(25000)).toBe(true)

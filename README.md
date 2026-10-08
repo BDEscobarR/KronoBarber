@@ -244,9 +244,10 @@ KronoBarber/
 │   │   ├── modelo/
 │   │   │   ├── Barberia.ts            entidad + EstadoBarberia + BarberiaDTO + aBarberiaDTO()
 │   │   │   ├── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
-│   │   │   └── Usuario.ts             entidad + RolUsuario + perteneceABarberia() + UsuarioDTO (sin claveHash)
+│   │   │   ├── Usuario.ts             entidad + RolUsuario + perteneceABarberia() + UsuarioDTO (sin claveHash)
+│   │   │   └── HorarioAtencion.ts     entidad + DiaSemana + Franja + seSolapan() (semilla de la regla 5)
 │   │   └── puertos/
-│   │       └── index.ts               BarberiaDAO, ServicioDAO y UsuarioDAO
+│   │       └── index.ts               BarberiaDAO, ServicioDAO, UsuarioDAO y HorarioAtencionDAO
 │   │
 │   ├── aplicacion/                    orquestación de las reglas
 │   │   └── casos-uso/
@@ -260,6 +261,7 @@ KronoBarber/
 │   │   │   ├── BarberiaDAOPrisma.ts   adaptador: implementa BarberiaDAO con Prisma
 │   │   │   ├── ServicioDAOPrisma.ts   adaptador: implementa ServicioDAO con Prisma
 │   │   │   ├── UsuarioDAOPrisma.ts    adaptador: implementa UsuarioDAO con Prisma
+│   │   │   ├── HorarioAtencionDAOPrisma.ts  adaptador: implementa HorarioAtencionDAO con Prisma
 │   │   │   └── generado/              (no versionado) cliente generado por Prisma
 │   │   └── http/
 │   │       ├── servidor.ts            arma la app Express: prefijo /api, Swagger, 404, errores
@@ -272,7 +274,7 @@ KronoBarber/
 │
 ├── tests/
 │   ├── unidad/                        casos de uso y reglas, sin BD ni red, en milisegundos
-│   ├── dobles/                        BarberiaDAOEnMemoria, ServicioDAOEnMemoria y UsuarioDAOEnMemoria
+│   ├── dobles/                        BarberiaDAOEnMemoria, ServicioDAOEnMemoria, UsuarioDAOEnMemoria y HorarioAtencionDAOEnMemoria
 │   └── arquitectura.test.ts           verifica la regla de dependencias
 │
 ├── .env.example                       plantilla de variables (sí se versiona)
@@ -373,8 +375,8 @@ Diferencias con PostgreSQL que condicionan el esquema:
 
 | Tema | En SQL Server con Prisma | Cómo se resolvió |
 |---|---|---|
-| `enum` | **No soportado** | `estado` (Barberia) y `rol` (Usuario) son `String`. La lista válida vive en el dominio y el DAO la comprueba al leer |
-| `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo o con personal no se puede borrar |
+| `enum` | **No soportado** | `estado` (Barberia), `rol` (Usuario) y `diaSemana` (HorarioAtencion) son `String`. La lista válida vive en el dominio y el DAO la comprueba al leer |
+| `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo, personal u horario no se puede borrar |
 | Base sombra de `migrate dev` | Crearla automáticamente exige ser administrador del servidor | Se crea una vez a mano (`KronoBarber_sombra`) y `prisma.config.ts` la declara |
 | Mayúsculas | La intercalación por defecto no las distingue | "Corte clásico" y "CORTE CLÁSICO" chocan en el `@@unique([barberiaId, nombre])`, que es lo que se quiere |
 
@@ -406,7 +408,7 @@ GO
 ```bash
 npm install                      # el postinstall genera el cliente de Prisma
 cp .env.example .env             # en PowerShell: Copy-Item .env.example .env; luego poner la contraseña
-npm run db:migrate               # aplica las migraciones (crea las tablas Barberia, Servicio y Usuario)
+npm run db:migrate               # aplica las migraciones (crea las tablas Barberia, Servicio, Usuario y HorarioAtencion)
 npm run dev                      # KronoBarber escuchando en http://localhost:3000/api (documentación en /api/docs)
 ```
 
@@ -444,7 +446,7 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `GET` | `/barberias/:id` | Detalle, en cualquier estado | `404` |
 | `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404`; `409` ya habilitada |
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
-| `GET` | `/barberias/:barberiaId/servicios` | Vitrina: servicios activos, **solo si la barbería está habilitada** | `404` |
+| `GET` | `/barberias/:barberiaId/servicios?todos=` | Sin `todos`, vitrina: servicios activos, **solo si la barbería está habilitada**. Con `todos=true`, catálogo de gestión: también los inactivos (campo `activo`), en cualquier estado de la barbería (CAR-03) | `400` `todos` no es `true` ni `false`; `404` |
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
 existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
@@ -460,6 +462,7 @@ curl -X POST http://localhost:3000/api/barberias/<ID>/habilitacion
 curl -X POST http://localhost:3000/api/barberias/<ID>/servicios -H "Content-Type: application/json" \
   -d '{"nombre":"Corte clásico","precio":25000,"duracionMinutos":30}'
 curl http://localhost:3000/api/barberias/<ID>/servicios
+curl "http://localhost:3000/api/barberias/<ID>/servicios?todos=true"
 ```
 
 ### Problemas frecuentes

@@ -1,4 +1,5 @@
 import { ESTADOS_BARBERIA } from '../../dominio/modelo/Barberia'
+import { DIAS_SEMANA } from '../../dominio/modelo/HorarioAtencion'
 import {
   DURACION_MAXIMA_MINUTOS,
   DURACION_MINIMA_MINUTOS,
@@ -95,6 +96,39 @@ const creacionServicio = {
   required: ['nombre', 'precio', 'duracionMinutos'],
 }
 
+/** Patrón de una hora `HH:MM`, de `00:00` a `23:59`: el mismo que comprueba `esHoraValida`. */
+const HORA = '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+
+/** Esquema de `ConfiguracionHorarioDTO`: el horario de atención completo de una barbería. */
+const configuracionHorario = {
+  type: 'object',
+  description:
+    'Horario de atención completo (`ConfiguracionHorarioDTO`). Reemplaza al anterior: lo que no viene deja ' +
+    'de existir. `barberiaId` solo sale en la respuesta; en la petición se toma de la URL.',
+  properties: {
+    barberiaId: { type: 'string', format: 'uuid', readOnly: true },
+    franjas: {
+      type: 'array',
+      description: 'Franjas semanales. Varias para el mismo día permiten la jornada partida, sin solaparse.',
+      items: {
+        type: 'object',
+        properties: {
+          diaSemana: { type: 'string', enum: DIAS_SEMANA, example: 'LUNES' },
+          inicio: { type: 'string', pattern: HORA, example: '08:00' },
+          fin: { type: 'string', pattern: HORA, description: 'Posterior a `inicio`.', example: '12:00' },
+        },
+        required: ['diaSemana', 'inicio', 'fin'],
+      },
+    },
+    cierres: {
+      type: 'array',
+      description: 'Fechas en que la barbería no atiende, sin importar su franja semanal. Sin repetir.',
+      items: { type: 'string', format: 'date', example: '2026-12-25' },
+    },
+  },
+  required: ['franjas', 'cierres'],
+}
+
 /**
  * Contenido JSON que referencia un esquema de `components.schemas`.
  *
@@ -166,11 +200,25 @@ export const openapi = {
     '/barberias': {
       get: {
         tags: ['Barberías'],
-        summary: 'Catálogo público: solo barberías habilitadas (CAR-07, RES-11)',
+        summary:
+          'Catálogo público (CAR-07, RES-11) o, con `estado`, la bandeja del operador (CAR-19)',
         parameters: [
           { name: 'ciudad', in: 'query', required: false, schema: { type: 'string' }, example: 'Manizales' },
+          {
+            name: 'estado',
+            in: 'query',
+            required: false,
+            schema: { type: 'string', enum: ESTADOS_BARBERIA },
+            description:
+              'Bandeja del operador (CAR-19): filtra por este estado en vez del catálogo público de ' +
+              'habilitadas. Un valor fuera de `ESTADOS_BARBERIA` responde 400.',
+            example: 'PENDIENTE_VERIFICACION',
+          },
         ],
-        responses: { 200: { description: 'Barberías habilitadas, por nombre', content: lista('BarberiaDTO') } },
+        responses: {
+          200: { description: 'Barberías filtradas, por nombre', content: lista('BarberiaDTO') },
+          400: fallo('Estado desconocido'),
+        },
       },
       post: {
         tags: ['Barberías'],
@@ -209,52 +257,12 @@ export const openapi = {
     '/barberias/{id}/horario': {
       put: {
         tags: ['Barberías'],
-        summary: 'Configura franjas semanales y cierres por fecha (CAR-05)',
+        summary: 'Configura el horario de atención: franjas semanales y cierres por fecha (CAR-05)',
         parameters: [parametroId('id')],
-        requestBody: {
-          required: true,
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  franjas: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        diaSemana: { type: 'integer', minimum: 0, maximum: 6, description: '0 domingo, 6 sábado' },
-                        horaInicio: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
-                        horaFin: { type: 'string', pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' },
-                      },
-                      required: ['diaSemana', 'horaInicio', 'horaFin'],
-                    },
-                  },
-                  cierres: { type: 'array', items: { type: 'string', format: 'date' } },
-                },
-                required: ['franjas', 'cierres'],
-              },
-            },
-          },
-        },
+        requestBody: { required: true, content: json('ConfiguracionHorarioDTO') },
         responses: {
-          200: {
-            description: 'Horario reemplazado',
-            content: {
-              'application/json': {
-                schema: {
-                  type: 'object',
-                  properties: {
-                    barberiaId: { type: 'string', format: 'uuid' },
-                    franjas: { type: 'array', items: { type: 'object' } },
-                    cierres: { type: 'array', items: { type: 'string', format: 'date' } },
-                  },
-                  required: ['barberiaId', 'franjas', 'cierres'],
-                },
-              },
-            },
-          },
-          400: fallo('Franjas solapadas, horas inválidas o cierres con fecha incorrecta'),
+          200: { description: 'Horario guardado en lugar del anterior', content: json('ConfiguracionHorarioDTO') },
+          400: fallo('Formato inválido, franja que no empieza antes de terminar, franjas solapadas o cierre repetido'),
           404: fallo('La barbería no existe'),
         },
       },
@@ -262,11 +270,27 @@ export const openapi = {
     '/barberias/{barberiaId}/servicios': {
       get: {
         tags: ['Servicios'],
-        summary: 'Catálogo público de una barbería: solo servicios activos, y solo si está habilitada',
-        parameters: [parametroId('barberiaId')],
+        summary: 'Catálogo de una barbería: la vitrina pública o, con todos=true, el de gestión (CAR-03)',
+        description:
+          'Sin `todos`: vitrina pública, solo servicios activos y solo si la barbería está habilitada (CAR-07, RES-11). ' +
+          'Con `todos=true`: catálogo de gestión, también los inactivos, en cualquier estado de la barbería.',
+        parameters: [
+          parametroId('barberiaId'),
+          {
+            name: 'todos',
+            in: 'query',
+            required: false,
+            description: '`true` incluye los servicios inactivos (catálogo de gestión).',
+            schema: { type: 'boolean', default: false },
+          },
+        ],
         responses: {
-          200: { description: 'Servicios activos, por nombre', content: lista('ServicioDTO') },
-          404: fallo('La barbería no existe o no está habilitada'),
+          200: {
+            description: 'Servicios por nombre: solo los activos o, con todos=true, todos con su campo `activo`',
+            content: lista('ServicioDTO'),
+          },
+          400: fallo('todos no es true ni false'),
+          404: fallo('La barbería no existe o, sin todos, no está habilitada'),
         },
       },
       post: {
@@ -289,6 +313,7 @@ export const openapi = {
       RegistroBarberiaDTO: registroBarberia,
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
+      ConfiguracionHorarioDTO: configuracionHorario,
       Error: error,
     },
   },

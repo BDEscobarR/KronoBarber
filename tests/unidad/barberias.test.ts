@@ -91,6 +91,27 @@ describe('HabilitarBarberia', () => {
   })
 })
 
+describe('BarberiaDAOEnMemoria.porEstado', () => {
+  it('filtra por estado y ordena por nombre, sin importar la ciudad', async () => {
+    const { registrar, habilitar, barberias } = armar()
+    const clasico = await registrar.ejecutar({ ...EL_CLASICO, nombre: 'Zona Clásica' })
+    const moderna = await registrar.ejecutar({ ...EL_CLASICO, nombre: 'Barbería Moderna', correo: 'otro@correo.co' })
+    await habilitar.ejecutar(moderna.id)
+
+    const pendientes = await barberias.porEstado('PENDIENTE_VERIFICACION')
+    const habilitadas = await barberias.porEstado('HABILITADA')
+
+    expect(pendientes.map((b) => b.id)).toEqual([clasico.id])
+    expect(habilitadas.map((b) => b.id)).toEqual([moderna.id])
+  })
+
+  it('no devuelve nada si ninguna barbería está en ese estado', async () => {
+    const { barberias } = armar()
+
+    expect(await barberias.porEstado('SUSPENDIDA')).toEqual([])
+  })
+})
+
 describe('aBarberiaDTO', () => {
   it('nunca deja salir el motivo de una suspensión', () => {
     const dto = aBarberiaDTO({

@@ -22,7 +22,7 @@ model Barberia {
   creadoEn         DateTime   @default(now())
   servicios        Servicio[]
   usuarios         Usuario[]
-  horariosAtencion HorarioAtencion[]
+  horarios         HorarioAtencion[]
 
   @@index([estado, ciudad])
 }
@@ -59,15 +59,22 @@ model Usuario {
   barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 }
 
-// Una fila representa una franja semanal o un cierre en una fecha concreta. Las franjas tienen
-// diaSemana y horas; los cierres tienen fecha y dejan vacías las horas y el día semanal.
+// Horario de atención (CAR-05): límite exterior de toda disponibilidad (RES-07). SQL Server no
+// admite `enum`: `diaSemana` es texto y la lista válida vive en el dominio (DIAS_SEMANA); el DAO
+// la comprueba al leer. Un renglón es una franja semanal recurrente (diaSemana + horaInicio +
+// horaFin, con `fecha` nula) o un cierre puntual (`fecha`, con los demás campos nulos): ese día la
+// barbería no atiende, sin importar la franja semanal. Varias franjas por día permiten jornada
+// partida.
 model HorarioAtencion {
   id         String    @id @default(uuid()) @db.NVarChar(36)
   barberiaId String    @db.NVarChar(36)
-  diaSemana  Int?
+  diaSemana  String?   @db.VarChar(10)
   fecha      DateTime? @db.Date
   horaInicio String?   @db.VarChar(5)
   horaFin    String?   @db.VarChar(5)
+  creadoEn   DateTime  @default(now())
+  // Ver Servicio: SQL Server no admite `Restrict`; `NoAction` produce el mismo efecto, una
+  // barbería con horario no se puede borrar.
   barberia   Barberia  @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([barberiaId, diaSemana])
