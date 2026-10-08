@@ -5,6 +5,7 @@
 // - Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
 
 import type { Barberia, BarberiaNueva, EstadoBarberia } from '../modelo/Barberia'
+import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
 import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
@@ -66,6 +67,28 @@ export interface BarberiaDAO {
    * @returns La barbería con el estado nuevo.
    */
   cambiarEstado(id: string, estado: EstadoBarberia, motivoSuspension: string | null): Promise<Barberia>
+}
+
+/**
+ * Acceso a datos del horario de atención. Lo declara el dominio y lo implementa la
+ * infraestructura (`HorarioAtencionDAOPrisma`); las pruebas usan un doble en memoria.
+ */
+export interface HorarioAtencionDAO {
+  /**
+   * Persiste un renglón del horario: una franja semanal recurrente o un cierre puntual.
+   *
+   * @param horario Datos completos, sin id.
+   * @returns El renglón guardado, con el id que le asignó la base de datos.
+   */
+  guardar(horario: HorarioAtencionNuevo): Promise<HorarioAtencion>
+
+  /**
+   * Horario completo de una barbería: sus franjas semanales y sus cierres puntuales.
+   *
+   * @param barberiaId Barbería dueña del horario.
+   * @returns Los renglones del horario; una lista vacía si no tiene ninguno.
+   */
+  deBarberia(barberiaId: string): Promise<HorarioAtencion[]>
 }
 
 /**
