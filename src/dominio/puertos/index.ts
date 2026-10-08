@@ -99,6 +99,16 @@ export interface HorarioAtencionDAO {
    * @returns Los renglones del horario; una lista vacía si no tiene ninguno.
    */
   deBarberia(barberiaId: string): Promise<HorarioAtencion[]>
+
+  /**
+   * Reemplaza el horario completo de una barbería en una sola operación atómica: borra sus
+   * renglones y guarda los nuevos. Si algo falla, el horario anterior queda intacto.
+   *
+   * @param barberiaId Barbería dueña del horario.
+   * @param renglones Franjas semanales y cierres puntuales nuevos, todos de esa barbería.
+   * @returns Los renglones guardados, con los ids que les asignó la base de datos.
+   */
+  reemplazar(barberiaId: string, renglones: HorarioAtencionNuevo[]): Promise<HorarioAtencion[]>
 }
 
 /**

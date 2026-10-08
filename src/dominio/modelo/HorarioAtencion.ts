@@ -10,6 +10,9 @@ export type DiaSemana = (typeof DIAS_SEMANA)[number]
 /** Hora del día en formato `HH:MM`, de `00:00` a `23:59`. */
 const HORA = /^([01]\d|2[0-3]):[0-5]\d$/
 
+/** Fecha de calendario en formato `YYYY-MM-DD`, con año, mes y día capturados. */
+const FECHA = /^(\d{4})-(\d{2})-(\d{2})$/
+
 /**
  * Intervalo de tiempo dentro de un mismo día. `inicio` cuenta como ocupado, `fin` no: dos franjas
  * contiguas (el fin de una es el inicio de la otra) no se solapan.
@@ -77,6 +80,22 @@ export function esDiaSemanaOpcional(valor: unknown): valor is DiaSemana | null {
  */
 export function esHoraValida(valor: unknown): valor is string {
   return typeof valor === 'string' && HORA.test(valor)
+}
+
+/**
+ * Comprueba que un texto sea la fecha `YYYY-MM-DD` de un cierre puntual y que exista en el
+ * calendario: `2026-02-30` tiene la forma, pero no existe. Es aritmética pura, sin `Date`.
+ *
+ * @param valor Dato de origen desconocido.
+ * @returns `true` si `valor` es una fecha real en formato `YYYY-MM-DD`.
+ */
+export function esFechaValida(valor: unknown): valor is string {
+  const partes = typeof valor === 'string' ? FECHA.exec(valor) : null
+  if (!partes) return false
+  const [anio, mes, dia] = partes.slice(1).map(Number) as [number, number, number]
+  const bisiesto = anio % 4 === 0 && (anio % 100 !== 0 || anio % 400 === 0)
+  const diasDelMes = [31, bisiesto ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][mes - 1]
+  return diasDelMes !== undefined && dia >= 1 && dia <= diasDelMes
 }
 
 /**

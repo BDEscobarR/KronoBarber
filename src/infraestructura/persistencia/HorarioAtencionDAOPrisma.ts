@@ -30,6 +30,20 @@ const aDominio = (fila: FilaHorarioAtencion): HorarioAtencion => {
 }
 
 /**
+ * El camino inverso de `aDominio`: un renglón nuevo del dominio, en columnas de la tabla. La fecha
+ * del cierre (`YYYY-MM-DD`) se pasa a medianoche UTC, que es como `aDominio` la vuelve a leer.
+ *
+ * @param horario Renglón del dominio, sin id.
+ * @returns Los datos para `create` de Prisma.
+ */
+const aFila = ({ franja, fecha, ...resto }: HorarioAtencionNuevo) => ({
+  ...resto,
+  fecha: fecha === null ? null : new Date(`${fecha}T00:00:00.000Z`),
+  horaInicio: franja?.inicio ?? null,
+  horaFin: franja?.fin ?? null,
+})
+
+/**
  * Adaptador de persistencia: implementa `HorarioAtencionDAO` con Prisma sobre SQL Server. Es la
  * bisagra entre el ORM y el negocio: nada fuera de este archivo ve una fila de la tabla.
  */
@@ -47,12 +61,7 @@ export class HorarioAtencionDAOPrisma implements HorarioAtencionDAO {
    * @returns El renglón guardado.
    */
   async guardar(horario: HorarioAtencionNuevo): Promise<HorarioAtencion> {
-    const { franja, ...resto } = horario
-    return aDominio(
-      await this.prisma.horarioAtencion.create({
-        data: { ...resto, horaInicio: franja?.inicio ?? null, horaFin: franja?.fin ?? null },
-      }),
-    )
+    return aDominio(await this.prisma.horarioAtencion.create({ data: aFila(horario) }))
   }
 
   /**
@@ -64,5 +73,24 @@ export class HorarioAtencionDAOPrisma implements HorarioAtencionDAO {
   async deBarberia(barberiaId: string): Promise<HorarioAtencion[]> {
     const filas = await this.prisma.horarioAtencion.findMany({ where: { barberiaId } })
     return filas.map(aDominio)
+  }
+
+  /**
+   * Borra y vuelve a insertar dentro de una transacción: o queda el horario nuevo completo, o
+   * queda el anterior.
+   *
+   * @param barberiaId Barbería dueña del horario.
+   * @param renglones Franjas semanales y cierres puntuales nuevos.
+   * @returns Los renglones guardados, en el mismo orden en que llegaron.
+   */
+  async reemplazar(barberiaId: string, renglones: HorarioAtencionNuevo[]): Promise<HorarioAtencion[]> {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.horarioAtencion.deleteMany({ where: { barberiaId } })
+      const guardados: HorarioAtencion[] = []
+      for (const renglon of renglones) {
+        guardados.push(aDominio(await tx.horarioAtencion.create({ data: aFila(renglon) })))
+      }
+      return guardados
+    })
   }
 }
