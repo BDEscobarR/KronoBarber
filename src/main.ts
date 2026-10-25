@@ -7,22 +7,34 @@
  * Las variables del `.env` ya están cargadas: las pone `--env-file` antes de ejecutar este archivo.
  */
 import { RegistrarBarberia } from './aplicacion/casos-uso/RegistrarBarberia'
+import { ActualizarPerfilBarberia } from './aplicacion/casos-uso/ActualizarPerfilBarberia'
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
+import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
+import { ConfigurarHorarioAtencion } from './aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
+import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
+import { CambiarEstadoServicio } from './aplicacion/casos-uso/CambiarEstadoServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
+import { HorarioAtencionDAOPrisma } from './infraestructura/persistencia/HorarioAtencionDAOPrisma'
 import { crearServidor } from './infraestructura/http/servidor'
 
 const barberias = new BarberiaDAOPrisma(prisma)
 const servicios = new ServicioDAOPrisma(prisma)
+const horarios = new HorarioAtencionDAOPrisma(prisma)
 
 const app = crearServidor({
   barberias,
   servicios,
   registrarBarberia: new RegistrarBarberia(barberias),
+  actualizarPerfilBarberia: new ActualizarPerfilBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
+  suspenderBarberia: new SuspenderBarberia(barberias),
+  configurarHorario: new ConfigurarHorarioAtencion(barberias, horarios),
   crearServicio: new CrearServicio(barberias, servicios),
+  actualizarServicio: new ActualizarServicio(servicios),
+  cambiarEstadoServicio: new CambiarEstadoServicio(servicios),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */

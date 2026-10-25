@@ -3,7 +3,8 @@ import type { BarberiaDAO } from '../../dominio/puertos'
 
 /**
  * Error de negocio: la barbería pedida no existe. Lo comparten los casos de uso que parten de una
- * barbería (`HabilitarBarberia`, `CrearServicio`); la ruta HTTP lo traduce a 404.
+ * barbería (`HabilitarBarberia`, `ActualizarPerfilBarberia`, `CrearServicio`); la ruta HTTP lo
+ * traduce a 404.
  */
 export class BarberiaNoEncontrada extends Error {
   /** @param id Identificador que no corresponde a ninguna barbería. */
