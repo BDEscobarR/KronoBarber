@@ -33,6 +33,14 @@ export interface Servicio {
 export type ServicioNuevo = Omit<Servicio, 'id'>
 
 /**
+ * Lo que se puede editar de un servicio (CAR-03). La barbería, el estado y la identidad no cambian por
+ * aquí. `descripcion` en `null` significa "conservar la actual" (D-05).
+ */
+export type CambiosServicio = Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'> & {
+  descripcion: string | null
+}
+
+/**
  * Lo que sale hacia el exterior. Hoy coincide campo a campo con la entidad; existe para
  * que un campo interno que mañana gane `Servicio` no se filtre por HTTP sin querer.
  */

@@ -6,7 +6,7 @@
 
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
-import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
+import type { CambiosServicio, Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
 /**
@@ -146,12 +146,15 @@ export interface ServicioDAO {
    */
   cambiarEstado(id: string, activo: boolean): Promise<Servicio>
 
-  /** Actualiza los campos editables solo si el servicio pertenece a la barbería indicada. */
-  actualizar(
-    id: string,
-    barberiaId: string,
-    cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
-  ): Promise<Servicio | null>
+  /**
+   * Actualiza los campos editables, solo si el servicio pertenece a la barbería indicada (RES-02).
+   *
+   * @param id Identificador del servicio.
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param cambios Nombre, precio y duración; la descripción solo si no es `null` (D-05).
+   * @returns El servicio actualizado, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  actualizar(id: string, barberiaId: string, cambios: CambiosServicio): Promise<Servicio | null>
 
   /**
    * Busca un servicio por su nombre dentro de una barbería. El nombre es único dentro de la

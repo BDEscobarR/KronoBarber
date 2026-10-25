@@ -363,7 +363,10 @@ export const openapi = {
     '/barberias/{barberiaId}/servicios/{id}': {
       put: {
         tags: ['Servicios'],
-        summary: 'Actualiza nombre, precio y duración de un servicio (F1-12)',
+        summary: 'Actualiza nombre, precio, duración y, si viene, la descripción de un servicio (F1-12)',
+        description:
+          'Vale también sobre servicios inactivos. Si `descripcion` no viene (o viene en `null`), se conserva la ' +
+          'que tenía; a diferencia del `PUT` del perfil de la barbería, donde una descripción omitida queda vacía.',
         parameters: [parametroId('barberiaId'), parametroId('id')],
         requestBody: {
           required: true,
@@ -373,6 +376,13 @@ export const openapi = {
                 type: 'object',
                 properties: {
                   nombre: { type: 'string', minLength: 3, maxLength: 80 },
+                  descripcion: {
+                    type: 'string',
+                    maxLength: 300,
+                    nullable: true,
+                    description: 'Opcional. Si no viene, se conserva la descripción actual.',
+                    example: 'Tijera y máquina, con lavado.',
+                  },
                   precio: { type: 'integer', minimum: 1, maximum: PRECIO_MAXIMO },
                   duracionMinutos: {
                     type: 'integer', minimum: DURACION_MINIMA_MINUTOS,

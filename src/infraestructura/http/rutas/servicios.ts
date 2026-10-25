@@ -15,7 +15,11 @@ import {
   type CrearServicio,
   type CreacionServicioDTO,
 } from '../../../aplicacion/casos-uso/CrearServicio'
-import { ActualizarServicio, ServicioNoEncontrado } from '../../../aplicacion/casos-uso/ActualizarServicio'
+import {
+  ServicioNoEncontrado,
+  type ActualizacionServicioDTO,
+  type ActualizarServicio,
+} from '../../../aplicacion/casos-uso/ActualizarServicio'
 import { ServicioYaInactivo, type DesactivarServicio } from '../../../aplicacion/casos-uso/DesactivarServicio'
 import { ServicioYaActivo, type ActivarServicio } from '../../../aplicacion/casos-uso/ActivarServicio'
 import { BarberiaNoEncontrada } from '../../../aplicacion/casos-uso/HabilitarBarberia'
@@ -48,6 +52,29 @@ function validarServicio(barberiaId: string, cuerpo: unknown): CreacionServicioD
     precio: d['precio'],
     duracionMinutos: d['duracionMinutos'],
   }
+}
+
+/**
+ * Validación de frontera de la edición de un servicio, con los mismos límites de la creación. A diferencia
+ * del alta, una `descripcion` ausente o `null` no deja el campo vacío: conserva la que tenía (D-05).
+ *
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `ActualizarServicio`, o el mensaje de error para responder un 400.
+ */
+function validarActualizacion(cuerpo: unknown): ActualizacionServicioDTO | string {
+  const d = (cuerpo ?? {}) as Record<string, unknown>
+  const descripcion: unknown = d['descripcion'] ?? null
+  if (typeof d['nombre'] !== 'string' || d['nombre'].trim().length < 3 || d['nombre'].trim().length > 80)
+    return 'nombre requerido (entre 3 y 80 caracteres)'
+  if (!(descripcion === null || (typeof descripcion === 'string' && descripcion.trim().length <= 300)))
+    return 'descripcion inválida (máximo 300 caracteres)'
+  if (!esPrecioValido(d['precio'])) return `precio inválido (pesos enteros entre 1 y ${PRECIO_MAXIMO})`
+  if (!esDuracionValida(d['duracionMinutos']))
+    return (
+      `duracionMinutos inválida (entre ${DURACION_MINIMA_MINUTOS} y ${DURACION_MAXIMA_MINUTOS}, ` +
+      `múltiplo de ${PASO_DURACION_MINUTOS})`
+    )
+  return { nombre: d['nombre'], descripcion, precio: d['precio'], duracionMinutos: d['duracionMinutos'] }
 }
 
 /**
@@ -85,7 +112,8 @@ export interface DependenciasServicios {
  * barbería en la URL:
  *
  * - `POST /:barberiaId/servicios`: crea un servicio. Responde 201, 400, 404 o 409.
- * - `PUT /:barberiaId/servicios/:id`: actualiza nombre, precio y duración. Responde 200, 400, 404 o 409.
+ * - `PUT /:barberiaId/servicios/:id`: actualiza nombre, precio, duración y, si viene, la descripción.
+ *   Responde 200, 400, 404 o 409.
  * - `GET /:barberiaId/servicios`: vitrina con los servicios activos de una barbería habilitada.
  *   Con `?todos=true`, catálogo de gestión: también los inactivos. Responde 200, 400 o 404.
  * - `POST /:barberiaId/servicios/:id/desactivacion`: retira el servicio de la vitrina, sin cuerpo.
@@ -112,18 +140,10 @@ export function rutasServicios(deps: DependenciasServicios): Router {
   })
 
   rutas.put('/:barberiaId/servicios/:id', async (req, res, next) => {
-    const d = (req.body ?? {}) as Record<string, unknown>
-    if (typeof d['nombre'] !== 'string' || d['nombre'].trim().length < 3 || d['nombre'].trim().length > 80)
-      return void res.status(400).json({ error: 'nombre requerido (entre 3 y 80 caracteres)' })
-    if (!esPrecioValido(d['precio'])) return void res.status(400).json({ error: `precio inválido (pesos enteros entre 1 y ${PRECIO_MAXIMO})` })
-    if (!esDuracionValida(d['duracionMinutos']))
-      return void res.status(400).json({
-        error: `duracionMinutos inválida (entre ${DURACION_MINIMA_MINUTOS} y ${DURACION_MAXIMA_MINUTOS}, múltiplo de ${PASO_DURACION_MINUTOS})`,
-      })
+    const datos = validarActualizacion(req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
     try {
-      res.json(aServicioDTO(await deps.actualizarServicio.ejecutar(req.params.barberiaId, req.params.id, {
-        nombre: d['nombre'], precio: d['precio'], duracionMinutos: d['duracionMinutos'],
-      })))
+      res.json(aServicioDTO(await deps.actualizarServicio.ejecutar(req.params.barberiaId, req.params.id, datos)))
     } catch (error) {
       if (error instanceof ServicioNoEncontrado) return void res.status(404).json({ error: error.message })
       if (error instanceof ServicioYaExiste) return void res.status(409).json({ error: error.message })
