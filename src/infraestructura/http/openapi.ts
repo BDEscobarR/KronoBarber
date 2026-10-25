@@ -63,6 +63,23 @@ const actualizacionPerfilBarberia = {
     'ubicación y contacto. No cambia el estado. Una descripción omitida queda vacía.',
 }
 
+/** Esquema de `SuspensionBarberiaDTO`; el límite coincide con la validación de la ruta y la columna. */
+const suspensionBarberia = {
+  type: 'object',
+  description:
+    'Motivo de la suspensión (`SuspensionBarberiaDTO`). El id de la barbería se toma de la URL. El motivo se ' +
+    'guarda, pero no sale en `BarberiaDTO`.',
+  properties: {
+    motivo: {
+      type: 'string',
+      minLength: 10,
+      maxLength: 500,
+      example: 'Incumple la política de precios publicada',
+    },
+  },
+  required: ['motivo'],
+}
+
 /** Esquema de `ServicioDTO`. */
 const servicio = {
   type: 'object',
@@ -274,6 +291,23 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{id}/suspension': {
+      post: {
+        tags: ['Barberías'],
+        summary: 'El operador suspende una barbería habilitada, con motivo (CAR-02)',
+        description:
+          'Suspendida, la barbería no se ve ni recibe reservas, pero no se borra nada y su administrador puede ' +
+          'seguir editándola. Solo se suspende una barbería habilitada.',
+        parameters: [parametroId('id')],
+        requestBody: { required: true, content: json('SuspensionBarberiaDTO') },
+        responses: {
+          200: { description: 'Barbería suspendida (la respuesta no lleva el motivo)', content: json('BarberiaDTO') },
+          400: fallo('Motivo ausente, de menos de 10 o de más de 500 caracteres'),
+          404: fallo('No existe'),
+          409: fallo('Ya estaba suspendida, o sigue pendiente de verificación'),
+        },
+      },
+    },
     '/barberias/{id}/horario': {
       put: {
         tags: ['Barberías'],
@@ -392,6 +426,7 @@ export const openapi = {
       BarberiaDTO: barberia,
       RegistroBarberiaDTO: registroBarberia,
       ActualizacionPerfilBarberiaDTO: actualizacionPerfilBarberia,
+      SuspensionBarberiaDTO: suspensionBarberia,
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
       ConfiguracionHorarioDTO: configuracionHorario,
