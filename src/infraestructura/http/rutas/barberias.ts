@@ -1,6 +1,17 @@
 import { Router } from 'express'
-import { aBarberiaDTO, normalizarTelefono } from '../../../dominio/modelo/Barberia'
+import { aBarberiaDTO, esEstadoBarberia, normalizarTelefono } from '../../../dominio/modelo/Barberia'
+import { DIAS_SEMANA, esDiaSemana, esFechaValida, esHoraValida } from '../../../dominio/modelo/HorarioAtencion'
 import type { BarberiaDAO } from '../../../dominio/puertos'
+import type {
+  ActualizacionPerfilBarberiaDTO,
+  ActualizarPerfilBarberia,
+} from '../../../aplicacion/casos-uso/ActualizarPerfilBarberia'
+import {
+  HorarioInvalido,
+  type ConfiguracionHorarioDTO,
+  type ConfigurarHorarioAtencion,
+  type FranjaSemanal,
+} from '../../../aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import {
   BarberiaNoEncontrada,
   BarberiaYaHabilitada,
@@ -11,6 +22,12 @@ import {
   type RegistrarBarberia,
   type RegistroBarberiaDTO,
 } from '../../../aplicacion/casos-uso/RegistrarBarberia'
+import {
+  BarberiaNoHabilitada,
+  BarberiaYaSuspendida,
+  type SuspenderBarberia,
+  type SuspensionBarberiaDTO,
+} from '../../../aplicacion/casos-uso/SuspenderBarberia'
 
 /** Forma mínima de un correo: algo@algo.algo, sin espacios. */
 const CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -56,14 +73,70 @@ function validarRegistro(cuerpo: unknown): RegistroBarberiaDTO | string {
   }
 }
 
+/**
+ * Validación de frontera de la actualización del perfil. El `PUT` reemplaza el perfil completo con
+ * los mismos campos y límites del registro, así que reutiliza su validación y le suma el id de la URL.
+ *
+ * @param id Barbería tomada de la URL.
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `ActualizarPerfilBarberia`, o el mensaje de error para responder un 400.
+ */
+function validarActualizacion(id: string, cuerpo: unknown): ActualizacionPerfilBarberiaDTO | string {
+  const perfil = validarRegistro(cuerpo)
+  return typeof perfil === 'string' ? perfil : { id, ...perfil }
+}
+
+/**
+ * Validación de frontera del horario de atención: forma de cada franja y de cada cierre. Que las
+ * franjas sean coherentes entre sí es regla de negocio y lo comprueba `ConfigurarHorarioAtencion`.
+ *
+ * @param barberiaId Barbería tomada de la URL.
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `ConfigurarHorarioAtencion`, o el mensaje de error para responder un 400.
+ */
+function validarHorario(barberiaId: string, cuerpo: unknown): ConfiguracionHorarioDTO | string {
+  const { franjas, cierres } = (cuerpo ?? {}) as Record<string, unknown>
+  if (!Array.isArray(franjas)) return 'franjas debe ser una lista'
+  if (!Array.isArray(cierres) || !cierres.every(esFechaValida))
+    return 'cierres debe contener fechas válidas en formato YYYY-MM-DD'
+  const validas: FranjaSemanal[] = []
+  for (const valor of franjas) {
+    const f = (valor ?? {}) as Record<string, unknown>
+    if (!esDiaSemana(f['diaSemana'])) return `diaSemana inválido (${DIAS_SEMANA.join(', ')})`
+    if (!esHoraValida(f['inicio']) || !esHoraValida(f['fin'])) return 'inicio y fin deben tener formato HH:MM válido'
+    validas.push({ diaSemana: f['diaSemana'], inicio: f['inicio'], fin: f['fin'] })
+  }
+  return { barberiaId, franjas: validas, cierres }
+}
+
+/**
+ * Validación de frontera de la suspensión: el motivo es obligatorio (D-02) y su límite coincide con el
+ * tamaño de la columna `motivoSuspension`.
+ *
+ * @param id Barbería tomada de la URL.
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `SuspenderBarberia`, o el mensaje de error para responder un 400.
+ */
+function validarSuspension(id: string, cuerpo: unknown): SuspensionBarberiaDTO | string {
+  const { motivo } = (cuerpo ?? {}) as Record<string, unknown>
+  if (!textoEntre(motivo, 10, 500)) return 'motivo requerido (entre 10 y 500 caracteres)'
+  return { id, motivo }
+}
+
 /** Lo que necesitan las rutas de barberías; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasBarberias {
   /** Caso de uso del registro (CAR-01). */
   registrarBarberia: RegistrarBarberia
+  /** Caso de uso de la actualización del perfil (CAR-01). */
+  actualizarPerfilBarberia: ActualizarPerfilBarberia
   /** Caso de uso de la habilitación (CAR-02). */
   habilitarBarberia: HabilitarBarberia
+  /** Caso de uso de la suspensión, con motivo (CAR-02, D-02). */
+  suspenderBarberia: SuspenderBarberia
   /** Acceso directo para las consultas que no tienen reglas propias. */
   barberias: BarberiaDAO
+  /** Caso de uso de configuración del horario de atención (CAR-05). */
+  configurarHorario: ConfigurarHorarioAtencion
 }
 
 /**
@@ -71,8 +144,12 @@ export interface DependenciasBarberias {
  *
  * - `POST /`: registra una barbería. Responde 201, 400 o 409.
  * - `GET /?ciudad=`: catálogo público, solo habilitadas. Responde 200.
+ * - `GET /?estado=`: bandeja del operador (CAR-19), barberías en ese estado. Responde 200 o 400.
  * - `GET /:id`: detalle en cualquier estado. Responde 200 o 404.
+ * - `PUT /:id`: reemplaza el perfil. Responde 200, 400, 404 o 409.
  * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
+ * - `POST /:id/suspension`: el operador la suspende, con motivo. Responde 200, 400, 404 o 409.
+ * - `PUT /:id/horario`: reemplaza franjas semanales y cierres por fecha. Responde 200, 400 o 404.
  *
  * Cada handler valida, llama al caso de uso, responde con el DTO y traduce los errores de negocio
  * a códigos HTTP; el resto lo delega a `next(error)`.
@@ -94,9 +171,15 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
     }
   })
 
-  // Catálogo público (CAR-07): una barbería no habilitada no es visible (RES-11).
+  // Catálogo público (CAR-07) o, con `estado`, la bandeja del operador (CAR-19).
   rutas.get('/', async (req, res, next) => {
     try {
+      const estado = req.query['estado']
+      if (typeof estado === 'string') {
+        if (!esEstadoBarberia(estado)) return void res.status(400).json({ error: `Estado desconocido: ${estado}` })
+        return void res.json((await deps.barberias.porEstado(estado)).map(aBarberiaDTO))
+      }
+      // Catálogo público (CAR-07): una barbería no habilitada no es visible (RES-11).
       const ciudad = req.query['ciudad']
       const filtro = typeof ciudad === 'string' && ciudad.trim() ? ciudad.trim() : null
       res.json((await deps.barberias.habilitadas(filtro)).map(aBarberiaDTO))
@@ -115,6 +198,20 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
     }
   })
 
+  // Edición del perfil (CAR-01): el estado no viaja en el cuerpo, lo cambian las acciones del operador.
+  // Vale también sobre una barbería suspendida, que sigue suspendida (D-03).
+  rutas.put('/:id', async (req, res, next) => {
+    const datos = validarActualizacion(req.params.id, req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
+    try {
+      res.json(aBarberiaDTO(await deps.actualizarPerfilBarberia.ejecutar(datos)))
+    } catch (error) {
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
+      if (error instanceof CorreoDeBarberiaYaRegistrado) return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+
   // Acción del operador con efecto propio, no una edición del perfil: POST a un sub-recurso.
   rutas.post('/:id/habilitacion', async (req, res, next) => {
     try {
@@ -122,6 +219,35 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
       if (error instanceof BarberiaYaHabilitada) return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+
+  // Acción del operador con efecto propio, como la habilitación, pero con motivo en el cuerpo (D-02). La
+  // respuesta es `BarberiaDTO`, que no lleva el motivo: leerlo queda para el operador y el administrador.
+  rutas.post('/:id/suspension', async (req, res, next) => {
+    const datos = validarSuspension(req.params.id, req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
+    try {
+      res.json(aBarberiaDTO(await deps.suspenderBarberia.ejecutar(datos)))
+    } catch (error) {
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
+      if (error instanceof BarberiaYaSuspendida || error instanceof BarberiaNoHabilitada)
+        return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+
+  // Horario de atención (CAR-05): el cuerpo es el horario completo, por eso es PUT. Hoy es abierto
+  // como el resto de la API; exigir ADMINISTRADOR de esa barbería llega con la Fase 4 (CAR-17).
+  rutas.put('/:id/horario', async (req, res, next) => {
+    const datos = validarHorario(req.params.id, req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
+    try {
+      res.json(await deps.configurarHorario.ejecutar(datos))
+    } catch (error) {
+      if (error instanceof HorarioInvalido) return void res.status(400).json({ error: error.message })
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
       next(error)
     }
   })
