@@ -261,7 +261,8 @@ KronoBarber/
 │   │       ├── ConfigurarHorarioAtencion.ts  caso de uso + ConfiguracionHorarioDTO + FranjaSemanal + HorarioInvalido
 │   │       ├── CrearServicio.ts       caso de uso + CreacionServicioDTO + ServicioYaExiste
 │   │       ├── ActualizarServicio.ts  caso de uso + ActualizacionServicioDTO + ServicioNoEncontrado
-│   │       └── CambiarEstadoServicio.ts  activa o desactiva un servicio
+│   │       ├── DesactivarServicio.ts  caso de uso + ServicioYaInactivo
+│   │       └── ActivarServicio.ts     caso de uso + ServicioYaActivo
 │   │
 │   ├── infraestructura/               lo reemplazable: aquí vive la tecnología
 │   │   ├── persistencia/
@@ -449,7 +450,7 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | Método | Ruta | Qué hace | Errores |
 |---|---|---|---|
 | `GET` | `/salud` | Verificación de vida, sin tocar la base de datos | Ninguno |
-| `GET` | `/docs` y `/openapi.json` | Swagger UI y contrato OpenAPI. **Todavía no incluyen** la suspensión ni el cambio de estado del servicio | Ninguno |
+| `GET` | `/docs` y `/openapi.json` | Swagger UI y contrato OpenAPI. **Todavía no incluyen** la suspensión | Ninguno |
 | `POST` | `/barberias` | Recibe `RegistroBarberiaDTO` y responde `201` con `BarberiaDTO` en `PENDIENTE_VERIFICACION` (CAR-01). Hoy es anónimo | `400`; `409` correo repetido |
 | `GET` | `/barberias?ciudad=` | Catálogo público: **solo habilitadas** (CAR-07, RES-11) | Ninguno |
 | `GET` | `/barberias?estado=` | Bandeja del operador: las barberías en ese estado, de cualquier ciudad (CAR-19). Si viene `estado`, `ciudad` se ignora | `400` estado desconocido |
@@ -461,11 +462,12 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
 | `GET` | `/barberias/:barberiaId/servicios?todos=` | Sin `todos`, vitrina: servicios activos, **solo si la barbería está habilitada**. Con `todos=true`, catálogo de gestión: también los inactivos (campo `activo`), en cualquier estado de la barbería (CAR-03) | `400` `todos` no es `true` ni `false`; `404` |
 | `PUT` | `/barberias/:barberiaId/servicios/:id` | Recibe `nombre`, `precio` y `duracionMinutos` y responde `200` con `ServicioDTO`. Vale también sobre inactivos y conserva el estado. No edita la descripción (CAR-03) | `400`; `404` el servicio no es de esa barbería; `409` nombre repetido |
-| `PATCH` | `/barberias/:id/estado` | **Ojo: `:id` es el id del servicio**, y no se comprueba la barbería. Recibe `{ "activo": true \| false }` y lo activa o desactiva; repetirlo no es error (CAR-03). Convierte el valor con `Boolean()`, así que `"false"` lo activa | Ninguno controlado: un servicio inexistente responde `500` |
+| `POST` | `/barberias/:barberiaId/servicios/:id/desactivacion` | **Sin cuerpo.** Retira el servicio de la vitrina sin borrarlo y responde `200` con `ServicioDTO` en `activo: false`. Sigue en el catálogo de gestión y se puede editar (CAR-03, D-04) | `404` el servicio no es de esa barbería o no existe; `409` ya estaba inactivo |
+| `POST` | `/barberias/:barberiaId/servicios/:id/activacion` | **Sin cuerpo.** Vuelve a ofrecer el servicio y responde `200` con `ServicioDTO` en `activo: true` (CAR-03, D-04) | `404` el servicio no es de esa barbería o no existe; `409` ya estaba activo |
 
-Las rutas de suspensión y de estado del servicio tienen defectos conocidos, y la edición del perfil y del
-servicio cambian por decisiones del §13. Todo eso se corrige en los casos #9, #10, #12 y #13, reabiertos y
-corregidos cada uno en su rama original.
+La ruta de suspensión tiene defectos conocidos, y la edición del perfil y del servicio cambian por
+decisiones del §13. Todo eso se corrige en los casos #9, #10 y #12, reabiertos y corregidos cada uno en su
+rama original.
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
 existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
@@ -495,8 +497,7 @@ curl -X POST http://localhost:3000/api/barberias/<ID>/servicios -H "Content-Type
   -d '{"nombre":"Corte clásico","precio":25000,"duracionMinutos":30}'
 curl -X PUT http://localhost:3000/api/barberias/<ID>/servicios/<SERVICIO> -H "Content-Type: application/json" \
   -d '{"nombre":"Corte clásico","precio":28000,"duracionMinutos":30}'
-curl -X PATCH http://localhost:3000/api/barberias/<SERVICIO>/estado -H "Content-Type: application/json" \
-  -d '{"activo":false}'
+curl -X POST http://localhost:3000/api/barberias/<ID>/servicios/<SERVICIO>/desactivacion
 curl http://localhost:3000/api/barberias/<ID>/servicios
 curl "http://localhost:3000/api/barberias/<ID>/servicios?todos=true"
 curl -X POST http://localhost:3000/api/barberias/<ID>/suspension
@@ -711,8 +712,8 @@ Corte del **2026-10-24** sobre `develop` (`8087e4b`): 51 pruebas de Vitest en ve
 4 tablas (`Barberia`, `Servicio`, `Usuario`, `HorarioAtencion`), 8 casos de uso y 11 rutas de negocio.
 Están integradas las fases 1 y 2 (PR #59 a #66): backlog de Barbería y Catálogo, y horario de atención. Lo
 que hay por característica está en la columna **Estado** del §5. Los defectos de las fases 1 y 2 se
-corrigen reabriendo sus casos (#9, #10, #12 y #13), cada uno en su rama original, antes de la primera
-release, `release/v0.1.0`.
+corrigen reabriendo sus casos, cada uno en su rama original, antes de la primera release,
+`release/v0.1.0`: #13 ya está corregido; faltan #9, #10 y #12.
 
 ### Decisiones abiertas
 

@@ -358,6 +358,34 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{barberiaId}/servicios/{id}/desactivacion': {
+      post: {
+        tags: ['Servicios'],
+        summary: 'Retira un servicio de la vitrina sin borrarlo (CAR-03)',
+        description:
+          'Sin cuerpo. Inactivo, el servicio no se muestra al público ni se puede reservar, pero sigue en el ' +
+          'catálogo de gestión (`?todos=true`) y se puede editar. Los turnos ya reservados no cambian.',
+        parameters: [parametroId('barberiaId'), parametroId('id')],
+        responses: {
+          200: { description: 'Servicio con `activo: false`', content: json('ServicioDTO') },
+          404: fallo('El servicio no existe en esta barbería'),
+          409: fallo('El servicio ya estaba inactivo'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/servicios/{id}/activacion': {
+      post: {
+        tags: ['Servicios'],
+        summary: 'Vuelve a ofrecer un servicio retirado de la vitrina (CAR-03)',
+        description: 'Sin cuerpo. El servicio vuelve tal como quedó, con lo que se haya editado mientras estuvo inactivo.',
+        parameters: [parametroId('barberiaId'), parametroId('id')],
+        responses: {
+          200: { description: 'Servicio con `activo: true`', content: json('ServicioDTO') },
+          404: fallo('El servicio no existe en esta barbería'),
+          409: fallo('El servicio ya estaba activo'),
+        },
+      },
+    },
   },
   components: {
     schemas: {

@@ -13,7 +13,8 @@ import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
 import { ConfigurarHorarioAtencion } from './aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
-import { CambiarEstadoServicio } from './aplicacion/casos-uso/CambiarEstadoServicio'
+import { DesactivarServicio } from './aplicacion/casos-uso/DesactivarServicio'
+import { ActivarServicio } from './aplicacion/casos-uso/ActivarServicio'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
@@ -34,7 +35,8 @@ const app = crearServidor({
   configurarHorario: new ConfigurarHorarioAtencion(barberias, horarios),
   crearServicio: new CrearServicio(barberias, servicios),
   actualizarServicio: new ActualizarServicio(servicios),
-  cambiarEstadoServicio: new CambiarEstadoServicio(servicios),
+  desactivarServicio: new DesactivarServicio(servicios),
+  activarServicio: new ActivarServicio(servicios),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */
