@@ -1,6 +1,6 @@
 import type { PrismaClient } from './generado/client'
 import type { ServicioModel as FilaServicio } from './generado/models'
-import type { Servicio, ServicioNuevo } from '../../dominio/modelo/Servicio'
+import type { CambiosServicio, Servicio, ServicioNuevo } from '../../dominio/modelo/Servicio'
 import type { ServicioDAO } from '../../dominio/puertos'
 
 /**
@@ -41,13 +41,19 @@ export class ServicioDAOPrisma implements ServicioDAO {
     return aDominio(await this.prisma.servicio.create({ data: servicio }))
   }
 
-  /** Actualiza por id y barbería para aplicar el aislamiento multiempresa en la propia escritura. */
-  async actualizar(
-    id: string,
-    barberiaId: string,
-    cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
-  ): Promise<Servicio | null> {
-    const resultado = await this.prisma.servicio.updateMany({ where: { id, barberiaId }, data: cambios })
+  /**
+   * Actualiza por id y barbería para aplicar el aislamiento multiempresa en la propia escritura. La
+   * descripción solo se escribe si viene; en `null`, la columna conserva su valor (D-05).
+   *
+   * @param id Identificador del servicio.
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param cambios Datos editables, ya normalizados.
+   * @returns El servicio actualizado, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  async actualizar(id: string, barberiaId: string, cambios: CambiosServicio): Promise<Servicio | null> {
+    const { descripcion, ...resto } = cambios
+    const data = descripcion === null ? resto : { ...resto, descripcion }
+    const resultado = await this.prisma.servicio.updateMany({ where: { id, barberiaId }, data })
     if (resultado.count === 0) return null
     const fila = await this.prisma.servicio.findUnique({ where: { id } })
     return fila ? aDominio(fila) : null

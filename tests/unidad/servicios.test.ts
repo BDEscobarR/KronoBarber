@@ -83,7 +83,7 @@ describe('ActualizarServicio', () => {
     creado.activo = false
 
     const actualizado = await actualizar.ejecutar(barberiaId, creado.id, {
-      nombre: '  Corte premium ', precio: 35000, duracionMinutos: 45,
+      nombre: '  Corte premium ', descripcion: null, precio: 35000, duracionMinutos: 45,
     })
 
     expect(actualizado).toMatchObject({
@@ -99,7 +99,7 @@ describe('ActualizarServicio', () => {
     const creado = await crear.ejecutar({ ...CORTE, barberiaId: primera.id })
 
     await expect(actualizar.ejecutar(segunda.id, creado.id, {
-      nombre: 'Corte premium', precio: 35000, duracionMinutos: 45,
+      nombre: 'Corte premium', descripcion: 'Descripción ajena', precio: 35000, duracionMinutos: 45,
     })).rejects.toBeInstanceOf(ServicioNoEncontrado)
     expect(creado.nombre).toBe('Corte clásico')
   })
@@ -111,8 +111,44 @@ describe('ActualizarServicio', () => {
     const segundo = await crear.ejecutar({ ...CORTE, barberiaId, nombre: 'Barba clásica' })
 
     await expect(actualizar.ejecutar(barberiaId, segundo.id, {
-      nombre: primero.nombre, precio: 30000, duracionMinutos: 30,
+      nombre: primero.nombre, descripcion: null, precio: 30000, duracionMinutos: 30,
     })).rejects.toBeInstanceOf(ServicioYaExiste)
+  })
+
+  it('actualiza también la descripción, sin espacios en los extremos (D-05)', async () => {
+    const { registrar, crear, actualizar } = armar()
+    const { id: barberiaId } = await registrar.ejecutar(barberia('descripcion@clasico.co'))
+    const creado = await crear.ejecutar({ ...CORTE, barberiaId })
+
+    const actualizado = await actualizar.ejecutar(barberiaId, creado.id, {
+      nombre: 'Corte clásico', descripcion: '  Tijera, máquina y lavado con masaje. ', precio: 25000, duracionMinutos: 30,
+    })
+
+    expect(actualizado.descripcion).toBe('Tijera, máquina y lavado con masaje.')
+  })
+
+  it('si no viene la descripción, conserva la que tenía (D-05)', async () => {
+    const { registrar, crear, actualizar } = armar()
+    const { id: barberiaId } = await registrar.ejecutar(barberia('conserva@clasico.co'))
+    const creado = await crear.ejecutar({ ...CORTE, barberiaId })
+
+    const actualizado = await actualizar.ejecutar(barberiaId, creado.id, {
+      nombre: 'Corte clásico', descripcion: null, precio: 28000, duracionMinutos: 30,
+    })
+
+    expect(actualizado).toMatchObject({ descripcion: CORTE.descripcion, precio: 28000 })
+  })
+
+  it('una descripción vacía la deja vacía, igual que en la creación', async () => {
+    const { registrar, crear, actualizar } = armar()
+    const { id: barberiaId } = await registrar.ejecutar(barberia('vacia@clasico.co'))
+    const creado = await crear.ejecutar({ ...CORTE, barberiaId })
+
+    const actualizado = await actualizar.ejecutar(barberiaId, creado.id, {
+      nombre: 'Corte clásico', descripcion: '', precio: 25000, duracionMinutos: 30,
+    })
+
+    expect(actualizado.descripcion).toBe('')
   })
 })
 
@@ -156,7 +192,7 @@ describe('DesactivarServicio', () => {
     await desactivar.ejecutar(barberiaId, creado.id)
 
     const editado = await actualizar.ejecutar(barberiaId, creado.id, {
-      nombre: 'Corte premium', precio: 35000, duracionMinutos: 45,
+      nombre: 'Corte premium', descripcion: null, precio: 35000, duracionMinutos: 45,
     })
 
     expect(editado).toMatchObject({ nombre: 'Corte premium', precio: 35000, activo: false })

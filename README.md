@@ -461,12 +461,12 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `PUT` | `/barberias/:id/horario` | Recibe `ConfiguracionHorarioDTO` (`franjas` con `diaSemana`, `inicio`, `fin` en `HH:MM`, y `cierres` en `YYYY-MM-DD`) y **reemplaza el horario completo**; responde `200` con lo guardado (CAR-05). Admite jornada partida y franjas contiguas, en cualquier estado de la barbería. Todavía no hay `GET` para consultarlo | `400` formato, franja que no avanza, franjas solapadas o cierre repetido; `404` |
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
 | `GET` | `/barberias/:barberiaId/servicios?todos=` | Sin `todos`, vitrina: servicios activos, **solo si la barbería está habilitada**. Con `todos=true`, catálogo de gestión: también los inactivos (campo `activo`), en cualquier estado de la barbería (CAR-03) | `400` `todos` no es `true` ni `false`; `404` |
-| `PUT` | `/barberias/:barberiaId/servicios/:id` | Recibe `nombre`, `precio` y `duracionMinutos` y responde `200` con `ServicioDTO`. Vale también sobre inactivos y conserva el estado. No edita la descripción (CAR-03) | `400`; `404` el servicio no es de esa barbería; `409` nombre repetido |
+| `PUT` | `/barberias/:barberiaId/servicios/:id` | Recibe `nombre`, `precio`, `duracionMinutos` y, opcional, `descripcion` (hasta 300 caracteres; si no viene, se conserva) y responde `200` con `ServicioDTO`. Vale también sobre inactivos y conserva el estado (CAR-03, D-05) | `400`; `404` el servicio no es de esa barbería; `409` nombre repetido |
 | `POST` | `/barberias/:barberiaId/servicios/:id/desactivacion` | **Sin cuerpo.** Retira el servicio de la vitrina sin borrarlo y responde `200` con `ServicioDTO` en `activo: false`. Sigue en el catálogo de gestión y se puede editar (CAR-03, D-04) | `404` el servicio no es de esa barbería o no existe; `409` ya estaba inactivo |
 | `POST` | `/barberias/:barberiaId/servicios/:id/activacion` | **Sin cuerpo.** Vuelve a ofrecer el servicio y responde `200` con `ServicioDTO` en `activo: true` (CAR-03, D-04) | `404` el servicio no es de esa barbería o no existe; `409` ya estaba activo |
 
-La edición del perfil y la del servicio cambian por decisiones del §13. Se corrigen en los casos #10 y
-#12, reabiertos y corregidos cada uno en su rama original.
+La edición del perfil cambia por una decisión del §13 (D-03): se corrige en el caso #10, reabierto y
+corregido en su rama original.
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
 existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
@@ -713,7 +713,7 @@ Corte del **2026-10-24** sobre `develop` (`8087e4b`): 51 pruebas de Vitest en ve
 Están integradas las fases 1 y 2 (PR #59 a #66): backlog de Barbería y Catálogo, y horario de atención. Lo
 que hay por característica está en la columna **Estado** del §5. Los defectos de las fases 1 y 2 se
 corrigen reabriendo sus casos, cada uno en su rama original, antes de la primera release,
-`release/v0.1.0`: #9 y #13 ya están corregidos; faltan #10 y #12.
+`release/v0.1.0`: #9, #12 y #13 ya están corregidos; falta #10.
 
 ### Decisiones abiertas
 
