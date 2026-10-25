@@ -2,10 +2,9 @@ import { Router } from 'express'
 import { aBarberiaDTO, esEstadoBarberia, normalizarTelefono } from '../../../dominio/modelo/Barberia'
 import { DIAS_SEMANA, esDiaSemana, esFechaValida, esHoraValida } from '../../../dominio/modelo/HorarioAtencion'
 import type { BarberiaDAO } from '../../../dominio/puertos'
-import {
-  BarberiaSuspendida,
-  type ActualizacionPerfilBarberiaDTO,
-  type ActualizarPerfilBarberia,
+import type {
+  ActualizacionPerfilBarberiaDTO,
+  ActualizarPerfilBarberia,
 } from '../../../aplicacion/casos-uso/ActualizarPerfilBarberia'
 import {
   HorarioInvalido,
@@ -200,6 +199,7 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
   })
 
   // Edición del perfil (CAR-01): el estado no viaja en el cuerpo, lo cambian las acciones del operador.
+  // Vale también sobre una barbería suspendida, que sigue suspendida (D-03).
   rutas.put('/:id', async (req, res, next) => {
     const datos = validarActualizacion(req.params.id, req.body)
     if (typeof datos === 'string') return void res.status(400).json({ error: datos })
@@ -207,8 +207,7 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
       res.json(aBarberiaDTO(await deps.actualizarPerfilBarberia.ejecutar(datos)))
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
-      if (error instanceof BarberiaSuspendida || error instanceof CorreoDeBarberiaYaRegistrado)
-        return void res.status(409).json({ error: error.message })
+      if (error instanceof CorreoDeBarberiaYaRegistrado) return void res.status(409).json({ error: error.message })
       next(error)
     }
   })
