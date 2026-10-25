@@ -11,7 +11,6 @@ import {
 } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
 import {
   ActualizarPerfilBarberia,
-  BarberiaSuspendida,
   type ActualizacionPerfilBarberiaDTO,
 } from '../../src/aplicacion/casos-uso/ActualizarPerfilBarberia'
 import {
@@ -225,13 +224,17 @@ describe('ActualizarPerfilBarberia', () => {
     ).rejects.toBeInstanceOf(CorreoDeBarberiaYaRegistrado)
   })
 
-  it('está bloqueada si la barbería está suspendida, y no cambia nada', async () => {
-    const { registrar, actualizar, barberias } = armar()
+  it('edita una barbería suspendida, que sigue suspendida y sin verse (D-03, RES-11)', async () => {
+    const { registrar, habilitar, suspender, actualizar, barberias } = armar()
     const creada = await registrar.ejecutar({ ...EL_CLASICO })
-    await barberias.cambiarEstado(creada.id, 'SUSPENDIDA', 'Incumple la política de precios')
+    await habilitar.ejecutar(creada.id)
+    await suspender.ejecutar({ id: creada.id, motivo: MOTIVO })
 
-    await expect(actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })).rejects.toBeInstanceOf(BarberiaSuspendida)
-    expect(await barberias.porId(creada.id)).toMatchObject({ nombre: 'Barbería El Clásico', estado: 'SUSPENDIDA' })
+    const actualizada = await actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })
+
+    expect(actualizada).toMatchObject({ nombre: 'Barbería El Moderno', estado: 'SUSPENDIDA', motivoSuspension: MOTIVO })
+    expect(esVisibleParaClientes(actualizada)).toBe(false)
+    expect(await barberias.habilitadas(null)).toEqual([])
   })
 
   it('falla si la barbería no existe', async () => {

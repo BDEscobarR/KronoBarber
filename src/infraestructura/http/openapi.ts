@@ -269,13 +269,16 @@ export const openapi = {
       put: {
         tags: ['Barberías'],
         summary: 'Actualiza el perfil: nombre, ubicación, contacto y descripción (CAR-01)',
+        description:
+          'Vale en cualquier estado. Una barbería suspendida también se puede editar, para corregir lo que ' +
+          'motivó la suspensión, pero sigue suspendida y sin verse hasta que el operador la habilite (D-03).',
         parameters: [parametroId('id')],
         requestBody: { required: true, content: json('ActualizacionPerfilBarberiaDTO') },
         responses: {
           200: { description: 'Perfil actualizado, con el mismo estado', content: json('BarberiaDTO') },
           400: fallo('Datos inválidos'),
           404: fallo('No existe'),
-          409: fallo('La barbería está suspendida o el correo ya lo usa otra barbería'),
+          409: fallo('El correo ya lo usa otra barbería'),
         },
       },
     },
