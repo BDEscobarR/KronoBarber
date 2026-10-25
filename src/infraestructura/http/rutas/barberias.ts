@@ -1,6 +1,12 @@
 import { Router } from 'express'
 import { aBarberiaDTO, esEstadoBarberia, normalizarTelefono } from '../../../dominio/modelo/Barberia'
-import { DIAS_SEMANA, esDiaSemana, esFechaValida, esHoraValida } from '../../../dominio/modelo/HorarioAtencion'
+import {
+  DIAS_SEMANA,
+  esDiaSemana,
+  esFechaValida,
+  esHoraValida,
+  type FranjaSemanal,
+} from '../../../dominio/modelo/HorarioAtencion'
 import type { BarberiaDAO } from '../../../dominio/puertos'
 import type {
   ActualizacionPerfilBarberiaDTO,
@@ -10,7 +16,6 @@ import {
   HorarioInvalido,
   type ConfiguracionHorarioDTO,
   type ConfigurarHorarioAtencion,
-  type FranjaSemanal,
 } from '../../../aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import {
   BarberiaNoEncontrada,
@@ -87,6 +92,26 @@ function validarActualizacion(id: string, cuerpo: unknown): ActualizacionPerfilB
 }
 
 /**
+ * Validación de frontera de una lista de franjas semanales: la forma de cada una. La comparten el
+ * horario de atención y la jornada del barbero (`rutas/barberos.ts`). Que las franjas sean coherentes
+ * entre sí es regla de negocio y lo comprueba cada caso de uso.
+ *
+ * @param franjas Valor de `franjas` en el cuerpo, sin validar.
+ * @returns Las franjas, o el mensaje de error para responder un 400.
+ */
+export function validarFranjas(franjas: unknown): FranjaSemanal[] | string {
+  if (!Array.isArray(franjas)) return 'franjas debe ser una lista'
+  const validas: FranjaSemanal[] = []
+  for (const valor of franjas) {
+    const f = (valor ?? {}) as Record<string, unknown>
+    if (!esDiaSemana(f['diaSemana'])) return `diaSemana inválido (${DIAS_SEMANA.join(', ')})`
+    if (!esHoraValida(f['inicio']) || !esHoraValida(f['fin'])) return 'inicio y fin deben tener formato HH:MM válido'
+    validas.push({ diaSemana: f['diaSemana'], inicio: f['inicio'], fin: f['fin'] })
+  }
+  return validas
+}
+
+/**
  * Validación de frontera del horario de atención: forma de cada franja y de cada cierre. Que las
  * franjas sean coherentes entre sí es regla de negocio y lo comprueba `ConfigurarHorarioAtencion`.
  *
@@ -96,16 +121,10 @@ function validarActualizacion(id: string, cuerpo: unknown): ActualizacionPerfilB
  */
 function validarHorario(barberiaId: string, cuerpo: unknown): ConfiguracionHorarioDTO | string {
   const { franjas, cierres } = (cuerpo ?? {}) as Record<string, unknown>
-  if (!Array.isArray(franjas)) return 'franjas debe ser una lista'
+  const validas = validarFranjas(franjas)
+  if (typeof validas === 'string') return validas
   if (!Array.isArray(cierres) || !cierres.every(esFechaValida))
     return 'cierres debe contener fechas válidas en formato YYYY-MM-DD'
-  const validas: FranjaSemanal[] = []
-  for (const valor of franjas) {
-    const f = (valor ?? {}) as Record<string, unknown>
-    if (!esDiaSemana(f['diaSemana'])) return `diaSemana inválido (${DIAS_SEMANA.join(', ')})`
-    if (!esHoraValida(f['inicio']) || !esHoraValida(f['fin'])) return 'inicio y fin deben tener formato HH:MM válido'
-    validas.push({ diaSemana: f['diaSemana'], inicio: f['inicio'], fin: f['fin'] })
-  }
   return { barberiaId, franjas: validas, cierres }
 }
 

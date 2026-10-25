@@ -124,6 +124,17 @@ const creacionServicio = {
 /** Patrón de una hora `HH:MM`, de `00:00` a `23:59`: el mismo que comprueba `esHoraValida`. */
 const HORA = '^([01][0-9]|2[0-3]):[0-5][0-9]$'
 
+/** Esquema de `FranjaSemanal`: un día de la semana y su intervalo. Lo comparten el horario y la jornada. */
+const franjaSemanal = {
+  type: 'object',
+  properties: {
+    diaSemana: { type: 'string', enum: DIAS_SEMANA, example: 'LUNES' },
+    inicio: { type: 'string', pattern: HORA, example: '08:00' },
+    fin: { type: 'string', pattern: HORA, description: 'Posterior a `inicio`.', example: '12:00' },
+  },
+  required: ['diaSemana', 'inicio', 'fin'],
+}
+
 /** Esquema de `ConfiguracionHorarioDTO`: el horario de atención completo de una barbería. */
 const configuracionHorario = {
   type: 'object',
@@ -135,15 +146,7 @@ const configuracionHorario = {
     franjas: {
       type: 'array',
       description: 'Franjas semanales. Varias para el mismo día permiten la jornada partida, sin solaparse.',
-      items: {
-        type: 'object',
-        properties: {
-          diaSemana: { type: 'string', enum: DIAS_SEMANA, example: 'LUNES' },
-          inicio: { type: 'string', pattern: HORA, example: '08:00' },
-          fin: { type: 'string', pattern: HORA, description: 'Posterior a `inicio`.', example: '12:00' },
-        },
-        required: ['diaSemana', 'inicio', 'fin'],
-      },
+      items: franjaSemanal,
     },
     cierres: {
       type: 'array',
@@ -152,6 +155,25 @@ const configuracionHorario = {
     },
   },
   required: ['franjas', 'cierres'],
+}
+
+/** Esquema de `JornadaDTO`: la jornada completa de un barbero. */
+const jornada = {
+  type: 'object',
+  description:
+    'Jornada completa de un barbero (`JornadaDTO`). Reemplaza a la anterior: lo que no viene deja de existir. ' +
+    '`barberoId` solo sale en la respuesta; en la petición se toma de la URL.',
+  properties: {
+    barberoId: { type: 'string', format: 'uuid', readOnly: true },
+    franjas: {
+      type: 'array',
+      description:
+        'Franjas semanales, cada una dentro del horario de atención de ese día (RES-07). Varias el mismo día ' +
+        'son una jornada partida, sin solaparse. La respuesta las ordena por día y hora.',
+      items: franjaSemanal,
+    },
+  },
+  required: ['franjas'],
 }
 
 /**
@@ -204,7 +226,7 @@ export const openapi = {
       'Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos.',
   },
   servers: [{ url: '/api' }],
-  tags: [{ name: 'Salud' }, { name: 'Barberías' }, { name: 'Servicios' }],
+  tags: [{ name: 'Salud' }, { name: 'Barberías' }, { name: 'Servicios' }, { name: 'Barberos' }],
   paths: {
     '/salud': {
       get: {
@@ -433,6 +455,34 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{barberiaId}/barberos/{barberoId}/jornada': {
+      get: {
+        tags: ['Barberos'],
+        summary: 'Jornada registrada de un barbero (CAR-06)',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        responses: {
+          200: { description: 'La jornada; sin franjas si todavía no tiene', content: json('JornadaDTO') },
+          404: fallo('El usuario no es barbero de esta barbería'),
+        },
+      },
+      put: {
+        tags: ['Barberos'],
+        summary: 'El administrador registra la jornada de un barbero (CAR-06, D-16)',
+        description:
+          'Reemplaza la jornada completa. La define el barbero, pero la registra el administrador de su barbería. ' +
+          'Cada franja debe caber en el horario de atención de ese día (RES-07): con jornada partida no puede ' +
+          'cruzar el cierre del mediodía, y las franjas contiguas del horario cuentan como una sola. Vale también ' +
+          'con la barbería suspendida (D-03).',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        requestBody: { required: true, content: json('JornadaDTO') },
+        responses: {
+          200: { description: 'Jornada guardada en lugar de la anterior', content: json('JornadaDTO') },
+          400: fallo('Formato inválido, franja que no empieza antes de terminar o franjas solapadas'),
+          404: fallo('La barbería no existe, o el usuario no es barbero de ella'),
+          409: fallo('El barbero está desvinculado, o una franja se sale del horario de atención'),
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -443,6 +493,7 @@ export const openapi = {
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
       ConfiguracionHorarioDTO: configuracionHorario,
+      JornadaDTO: jornada,
       Error: error,
     },
   },

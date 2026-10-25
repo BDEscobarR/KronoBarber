@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  ConfigurarHorarioAtencion,
-  HorarioInvalido,
-  type FranjaSemanal,
-} from '../../src/aplicacion/casos-uso/ConfigurarHorarioAtencion'
+import { ConfigurarHorarioAtencion, HorarioInvalido } from '../../src/aplicacion/casos-uso/ConfigurarHorarioAtencion'
 import { BarberiaNoEncontrada } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
 import { RegistrarBarberia, type RegistroBarberiaDTO } from '../../src/aplicacion/casos-uso/RegistrarBarberia'
 import {
@@ -12,6 +8,7 @@ import {
   esHoraValida,
   seSolapan,
   type Franja,
+  type FranjaSemanal,
 } from '../../src/dominio/modelo/HorarioAtencion'
 import { BarberiaDAOEnMemoria } from '../dobles/BarberiaDAOEnMemoria'
 import { HorarioAtencionDAOEnMemoria } from '../dobles/HorarioAtencionDAOEnMemoria'
