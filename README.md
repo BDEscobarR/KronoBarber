@@ -138,7 +138,7 @@ La columna **Estado** refleja `develop` al 2026-10-24; los `D-` son decisiones d
 | CAR-02 | Habilitación y suspensión de barberías | Operador | **Hecho**: habilitación y suspensión con motivo |
 | CAR-03 | Catálogo de servicios (precio, duración, activar/desactivar) | Administrador | **Hecho**: crear, editar, catálogo de gestión y activar o desactivar |
 | CAR-04 | Gestión del personal y de los servicios que presta cada barbero | Administrador | Pendiente (Fase 3). El barbero es un `Usuario` |
-| CAR-05 | Horarios de atención del establecimiento, incluidos cierres por fecha | Administrador | **Parcial**: se configura, pero todavía no se consulta |
+| CAR-05 | Horarios de atención del establecimiento, incluidos cierres por fecha | Administrador | **Hecho**: se configura y se consulta (D-06). Que su administrador lo vea en cualquier estado llega con las guardas por rol (#27) |
 | CAR-06 | Jornada y bloqueos puntuales del barbero | Barbero | Pendiente (Fase 3). Los registra el administrador (D-16), no el barbero como dice el Documento de Visión |
 | CAR-07 | Exploración de barberías y servicios | Cliente | **Hecho**: barberías habilitadas por ciudad y vitrina de servicios activos |
 | CAR-08 | Selección explícita de barbero | Cliente | Pendiente (fases 3 y 7) |
@@ -259,6 +259,7 @@ KronoBarber/
 │   │       ├── HabilitarBarberia.ts   caso de uso + BarberiaNoEncontrada + BarberiaYaHabilitada
 │   │       ├── SuspenderBarberia.ts   caso de uso + SuspensionBarberiaDTO + BarberiaYaSuspendida + BarberiaNoHabilitada
 │   │       ├── ConfigurarHorarioAtencion.ts  caso de uso + ConfiguracionHorarioDTO + FranjaSemanal + HorarioInvalido
+│   │       ├── ConsultarHorarioAtencion.ts  caso de uso: horario de una barbería habilitada, con la forma del PUT
 │   │       ├── CrearServicio.ts       caso de uso + CreacionServicioDTO + ServicioYaExiste
 │   │       ├── ActualizarServicio.ts  caso de uso + ActualizacionServicioDTO + ServicioNoEncontrado
 │   │       ├── DesactivarServicio.ts  caso de uso + ServicioYaInactivo
@@ -458,7 +459,8 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `PUT` | `/barberias/:id` | Recibe `ActualizacionPerfilBarberiaDTO` (los mismos campos del registro) y responde `200` con `BarberiaDTO`: reemplaza nombre, ubicación, contacto y descripción, sin cambiar el estado (CAR-01). Vale también sobre una barbería suspendida, que sigue suspendida y sin verse (D-03) | `400`; `404`; `409` correo de otra barbería |
 | `POST` | `/barberias/:id/habilitacion` | El operador habilita, desde pendiente o suspendida (CAR-02) | `404`; `409` ya habilitada |
 | `POST` | `/barberias/:id/suspension` | El operador suspende una barbería **habilitada**. Recibe `SuspensionBarberiaDTO` (`motivo`, de 10 a 500 caracteres) y responde `200` con `BarberiaDTO` en `SUSPENDIDA`. El motivo se guarda, pero no sale en la respuesta (CAR-02, D-02) | `400` motivo inválido; `404`; `409` ya suspendida o pendiente de verificación |
-| `PUT` | `/barberias/:id/horario` | Recibe `ConfiguracionHorarioDTO` (`franjas` con `diaSemana`, `inicio`, `fin` en `HH:MM`, y `cierres` en `YYYY-MM-DD`) y **reemplaza el horario completo**; responde `200` con lo guardado (CAR-05). Admite jornada partida y franjas contiguas, en cualquier estado de la barbería. Todavía no hay `GET` para consultarlo | `400` formato, franja que no avanza, franjas solapadas o cierre repetido; `404` |
+| `PUT` | `/barberias/:id/horario` | Recibe `ConfiguracionHorarioDTO` (`franjas` con `diaSemana`, `inicio`, `fin` en `HH:MM`, y `cierres` en `YYYY-MM-DD`) y **reemplaza el horario completo**; responde `200` con lo guardado (CAR-05). Admite jornada partida y franjas contiguas, en cualquier estado de la barbería | `400` formato, franja que no avanza, franjas solapadas o cierre repetido; `404` |
+| `GET` | `/barberias/:id/horario` | Responde `200` con `ConfiguracionHorarioDTO`, la misma forma del `PUT`: franjas de lunes a domingo y por hora, y cierres por fecha. **Público, solo si la barbería está habilitada**, como la vitrina; sin horario configurado, las dos listas vienen vacías (CAR-05, D-06) | `404` la barbería no existe o no está habilitada |
 | `POST` | `/barberias/:barberiaId/servicios` | Recibe `CreacionServicioDTO` y responde `201` con `ServicioDTO`, activo (CAR-03) | `400`; `404`; `409` nombre repetido |
 | `GET` | `/barberias/:barberiaId/servicios?todos=` | Sin `todos`, vitrina: servicios activos, **solo si la barbería está habilitada**. Con `todos=true`, catálogo de gestión: también los inactivos (campo `activo`), en cualquier estado de la barbería (CAR-03) | `400` `todos` no es `true` ni `false`; `404` |
 | `PUT` | `/barberias/:barberiaId/servicios/:id` | Recibe `nombre`, `precio`, `duracionMinutos` y, opcional, `descripcion` (hasta 300 caracteres; si no viene, se conserva) y responde `200` con `ServicioDTO`. Vale también sobre inactivos y conserva el estado (CAR-03, D-05) | `400`; `404` el servicio no es de esa barbería; `409` nombre repetido |
@@ -489,6 +491,7 @@ curl "http://localhost:3000/api/barberias?estado=PENDIENTE_VERIFICACION"
 curl -X POST http://localhost:3000/api/barberias/<ID>/habilitacion
 curl -X PUT http://localhost:3000/api/barberias/<ID>/horario -H "Content-Type: application/json" \
   -d '{"franjas":[{"diaSemana":"LUNES","inicio":"08:00","fin":"12:00"},{"diaSemana":"LUNES","inicio":"14:00","fin":"19:00"}],"cierres":["2026-12-25"]}'
+curl http://localhost:3000/api/barberias/<ID>/horario
 curl -X POST http://localhost:3000/api/barberias/<ID>/servicios -H "Content-Type: application/json" \
   -d '{"nombre":"Corte clásico","precio":25000,"duracionMinutos":30}'
 curl -X PUT http://localhost:3000/api/barberias/<ID>/servicios/<SERVICIO> -H "Content-Type: application/json" \

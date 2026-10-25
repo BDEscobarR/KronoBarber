@@ -12,6 +12,7 @@ import {
   type ConfigurarHorarioAtencion,
   type FranjaSemanal,
 } from '../../../aplicacion/casos-uso/ConfigurarHorarioAtencion'
+import type { ConsultarHorarioAtencion } from '../../../aplicacion/casos-uso/ConsultarHorarioAtencion'
 import {
   BarberiaNoEncontrada,
   BarberiaYaHabilitada,
@@ -137,6 +138,8 @@ export interface DependenciasBarberias {
   barberias: BarberiaDAO
   /** Caso de uso de configuración del horario de atención (CAR-05). */
   configurarHorario: ConfigurarHorarioAtencion
+  /** Caso de uso de consulta pública del horario de atención (CAR-05, D-06). */
+  consultarHorario: ConsultarHorarioAtencion
 }
 
 /**
@@ -150,6 +153,7 @@ export interface DependenciasBarberias {
  * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
  * - `POST /:id/suspension`: el operador la suspende, con motivo. Responde 200, 400, 404 o 409.
  * - `PUT /:id/horario`: reemplaza franjas semanales y cierres por fecha. Responde 200, 400 o 404.
+ * - `GET /:id/horario`: el horario de una barbería habilitada, con la forma del `PUT`. Responde 200 o 404.
  *
  * Cada handler valida, llama al caso de uso, responde con el DTO y traduce los errores de negocio
  * a códigos HTTP; el resto lo delega a `next(error)`.
@@ -247,6 +251,17 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
       res.json(await deps.configurarHorario.ejecutar(datos))
     } catch (error) {
       if (error instanceof HorarioInvalido) return void res.status(400).json({ error: error.message })
+      if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
+      next(error)
+    }
+  })
+
+  // Consulta pública del horario (D-06): como la vitrina, solo el de una barbería habilitada. Que su
+  // administrador lo vea en cualquier estado llega con la Fase 4 (#27).
+  rutas.get('/:id/horario', async (req, res, next) => {
+    try {
+      res.json(await deps.consultarHorario.ejecutar(req.params.id))
+    } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
       next(error)
     }
