@@ -464,7 +464,8 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `PATCH` | `/barberias/:id/estado` | **Ojo: `:id` es el id del servicio**, y no se comprueba la barbería. Recibe `{ "activo": true \| false }` y lo activa o desactiva; repetirlo no es error (CAR-03). Convierte el valor con `Boolean()`, así que `"false"` lo activa | Ninguno controlado: un servicio inexistente responde `500` |
 
 Las rutas de suspensión y de estado del servicio tienen defectos conocidos, y la edición del perfil y del
-servicio cambian por decisiones del §13. Todo eso se corrige en los hotfix #68 a #71.
+servicio cambian por decisiones del §13. Todo eso se corrige en los casos #9, #10, #12 y #13, reabiertos y
+corregidos cada uno en su rama original.
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
 existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
@@ -605,10 +606,14 @@ scripts con `cmd.exe`: así corre igual en Windows, Mac y en la integración con
 - **Node.js + TypeScript con tipado estricto** en el servidor (plan de curso 103093). **Sin cliente
   web**: la entrega es la API (§8, *Sin cliente web*).
 - Los cambios acordados **entran al backlog, no al sprint en curso**.
-- **Una tarea cerrada no se reabre ni se edita.** Si hay que cambiar algo ya cerrado, se crea un issue de
-  hotfix con el mismo prefijo de fase y el código del caso que corrige, `[F1] Hotfix F1-09 — …`. La
-  excepción es un cambio que depende de trabajo que todavía no existe: entra como caso nuevo de la fase de
-  la que depende y cita el caso cerrado que modifica (por ejemplo, #75 sobre #8).
+- **Un caso cerrado se reabre para corregirlo** (indicación del docente): no se crean casos nuevos para
+  corregir. Al reabrirlo se agrega al final de su descripción una sección **Corrección** con los ajustes y
+  sus criterios, sin borrar lo original, y el caso se cierra de nuevo cuando la corrección se fusiona.
+  - Si el caso todavía no está publicado en `main`, se corrige en **su rama original** y vuelve a `develop`
+    con un PR nuevo.
+  - Si el defecto ya está publicado en `main`, se corrige con un **hotfix** desde `main`.
+  - Un **caso nuevo** solo aparece para funcionalidad nueva que depende de trabajo pendiente, y cita el caso
+    cerrado que modifica (por ejemplo, #75 sobre #8).
 - Sin presupuesto: solo herramientas libres, gratuitas o de bajo costo (RES-09).
 
 ### Ramas
@@ -621,17 +626,16 @@ de `main` y se fusionan en `develop`, y `develop` llega a `main` a través de un
 | `main` | — | — | Solo recibe PR de `release` y de `hotfix` | — |
 | `develop` | `main` | Una `release` | — | — |
 | Caso del backlog | `main` | `develop`, por PR | `feature/fase-id-nombredescriptivodelcaso` | `feature/f1-21-create-dtos` |
+| Corrección de un caso sin publicar | La **rama original** del caso, que ya existe | `develop`, por un PR nuevo | El de la rama original | `feature/F1-09-suspender-barberia` (#9, reabierto) |
 | Release | `main` | `main`, por PR | `release/vX.Y.Z`, por versión | `release/v0.1.0` |
-| Hotfix | `main` | `main`, directamente, por PR | `hotfix/fase-id-nombredescriptivodelcaso` | `hotfix/f1-68-suspender-barberia` |
+| Hotfix | `main` | `main`, directamente, por PR | `hotfix/fase-id-nombredescriptivodelcaso` | `hotfix/f1-09-…`, si corrige el caso #9 |
 
 - **`fase`**: `f` en minúscula y el número de la fase (`f1`).
-- **`id`**: el número del issue que se trabaja (`21`). En un hotfix es el del issue del hotfix (`68`), no el
-  del caso que corrige.
+- **`id`**: el número del issue que se trabaja (`21`). En un hotfix es el del caso reabierto que corrige.
 - **`nombredescriptivodelcaso`**: en minúsculas, sin tildes y separado por guiones (`create-dtos`).
 
-Un hotfix que corrige código que todavía no está en `main` no puede salir de `main`. Es el caso de #68 a
-#71, que corrigen casos fusionados solo en `develop`. Esos hotfix salen de `develop` y se fusionan en
-`develop`, como un caso.
+Las ramas anteriores a esta nomenclatura (`feature/F1-09-suspender-barberia`, `feature/F1-10`…) conservan su
+nombre: una corrección se hace en la rama tal como existe.
 
 ### Versiones
 
@@ -658,10 +662,21 @@ Las releases siguen el versionado semántico, `MAYOR.MENOR.PARCHE`:
    rama por defecto (`main`), así que el issue se cierra a mano, y solo cuando cumple todos sus criterios
    de aceptación.
 
+**Una corrección de un caso ya integrado en `develop`** (todavía sin publicar)
+
+1. Reabrir el caso y agregar al final de su descripción la sección **Corrección**.
+2. Volver a la rama original del caso y traer lo último de ella (`git switch feature/F1-09-suspender-barberia`
+   y `git pull`).
+3. Fusionar `develop` en esa rama, para que tenga todo lo integrado después, y resolver ahí los
+   conflictos.
+4. Aplicar lo que dice la sección **Corrección**, con `npm test` y `npx tsc --noEmit` en verde.
+5. Abrir un PR nuevo de la rama original hacia `develop`, citando el caso, y cerrarlo de nuevo a mano
+   cuando cumpla los criterios de la corrección.
+
 **Una entrega en `main`** (al cerrar un corte)
 
 1. `develop` pasa todas las pruebas: `npm test`, `npx tsc --noEmit` y las pruebas manuales de cada
-   endpoint contra SQL Server. Lo que falle se corrige en `develop` antes de seguir.
+   endpoint contra SQL Server. Lo que falle se corrige antes de seguir, en la rama original del caso.
 2. Crear la rama `release/vX.Y.Z` desde `main`, con la versión que toca según *Versiones*. La primera es
    `release/v0.1.0`.
 3. Fusionar `develop` en la `release`.
@@ -670,9 +685,10 @@ Las releases siguen el versionado semántico, `MAYOR.MENOR.PARCHE`:
 
 **Un hotfix en `main`**
 
-1. Crear la rama `hotfix/…` desde `main`.
-2. Corregir, con `npm test` y `npx tsc --noEmit` en verde.
-3. Abrir el PR directamente hacia `main`.
+1. Reabrir el caso que tiene el defecto y agregar al final de su descripción la sección **Corrección**.
+2. Crear la rama `hotfix/…` desde `main`, con el número de ese caso.
+3. Corregir, con `npm test` y `npx tsc --noEmit` en verde.
+4. Abrir el PR directamente hacia `main`, citando el caso, y cerrarlo de nuevo al fusionar.
 
 No hace falta fusionar el hotfix en `develop`: como las ramas de los casos salen de `main`, la corrección
 llega a `develop` con el siguiente PR de un caso.
@@ -695,7 +711,8 @@ Corte del **2026-10-24** sobre `develop` (`8087e4b`): 51 pruebas de Vitest en ve
 4 tablas (`Barberia`, `Servicio`, `Usuario`, `HorarioAtencion`), 8 casos de uso y 11 rutas de negocio.
 Están integradas las fases 1 y 2 (PR #59 a #66): backlog de Barbería y Catálogo, y horario de atención. Lo
 que hay por característica está en la columna **Estado** del §5. Los defectos de las fases 1 y 2 se
-corrigen en los hotfix #68 a #71, antes de la primera release, `release/v0.1.0`.
+corrigen reabriendo sus casos (#9, #10, #12 y #13), cada uno en su rama original, antes de la primera
+release, `release/v0.1.0`.
 
 ### Decisiones abiertas
 
