@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { esVisibleParaClientes } from '../../../dominio/modelo/Barberia'
-import { CambiarEstadoServicio } from '../../../aplicacion/casos-uso/CambiarEstadoServicio';
 import {
   DURACION_MAXIMA_MINUTOS,
   DURACION_MINIMA_MINUTOS,
@@ -17,6 +16,8 @@ import {
   type CreacionServicioDTO,
 } from '../../../aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio, ServicioNoEncontrado } from '../../../aplicacion/casos-uso/ActualizarServicio'
+import { ServicioYaInactivo, type DesactivarServicio } from '../../../aplicacion/casos-uso/DesactivarServicio'
+import { ServicioYaActivo, type ActivarServicio } from '../../../aplicacion/casos-uso/ActivarServicio'
 import { BarberiaNoEncontrada } from '../../../aplicacion/casos-uso/HabilitarBarberia'
 
 /**
@@ -65,13 +66,14 @@ function validarTodos(valor: unknown): boolean | string {
 
 /** Lo que necesitan las rutas del catálogo; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasServicios {
-  
   /** Caso de uso del alta de servicios (CAR-03). */
   crearServicio: CrearServicio
   /** Caso de uso de edición del catálogo (F1-12). */
   actualizarServicio: ActualizarServicio
-  /** Caso de uso para activar o desactivar un servicio. */
-  cambiarEstadoServicio: CambiarEstadoServicio
+  /** Caso de uso que retira un servicio de la vitrina sin borrarlo (CAR-03, D-04). */
+  desactivarServicio: DesactivarServicio
+  /** Caso de uso que vuelve a ofrecer un servicio retirado (CAR-03, D-04). */
+  activarServicio: ActivarServicio
   /** Acceso a las barberías, para comprobar que existen y que la vitrina es visible (RES-11). */
   barberias: BarberiaDAO
   /** Acceso directo al catálogo para la vitrina y el catálogo de gestión. */
@@ -86,6 +88,10 @@ export interface DependenciasServicios {
  * - `PUT /:barberiaId/servicios/:id`: actualiza nombre, precio y duración. Responde 200, 400, 404 o 409.
  * - `GET /:barberiaId/servicios`: vitrina con los servicios activos de una barbería habilitada.
  *   Con `?todos=true`, catálogo de gestión: también los inactivos. Responde 200, 400 o 404.
+ * - `POST /:barberiaId/servicios/:id/desactivacion`: retira el servicio de la vitrina, sin cuerpo.
+ *   Responde 200, 404 o 409.
+ * - `POST /:barberiaId/servicios/:id/activacion`: vuelve a ofrecerlo, sin cuerpo. Responde 200, 404
+ *   o 409.
  *
  * @param deps Caso de uso y DAO que usan los handlers.
  * @returns El router de Express.
@@ -144,17 +150,28 @@ export function rutasServicios(deps: DependenciasServicios): Router {
     }
   })
 
-  // Ruta para activar o desactivar un servicio
-  rutas.patch('/:id/estado', async (req, res, next) => {
+  // Activar y desactivar son acciones con efecto propio, no una edición del servicio: POST a un
+  // sub-recurso y sin cuerpo, igual que habilitar y suspender una barbería (D-04). Sin cuerpo no hay
+  // nada que interpretar mal, y el servicio tiene que ser de la barbería de la URL (RES-02).
+  rutas.post('/:barberiaId/servicios/:id/desactivacion', async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const { activo } = req.body;
-      const servicio = await deps.cambiarEstadoServicio.ejecutar(id, Boolean(activo));
-      res.json(aServicioDTO(servicio));
+      res.json(aServicioDTO(await deps.desactivarServicio.ejecutar(req.params.barberiaId, req.params.id)))
     } catch (error) {
-      next(error);
+      if (error instanceof ServicioNoEncontrado) return void res.status(404).json({ error: error.message })
+      if (error instanceof ServicioYaInactivo) return void res.status(409).json({ error: error.message })
+      next(error)
     }
-  });
-  
+  })
+
+  rutas.post('/:barberiaId/servicios/:id/activacion', async (req, res, next) => {
+    try {
+      res.json(aServicioDTO(await deps.activarServicio.ejecutar(req.params.barberiaId, req.params.id)))
+    } catch (error) {
+      if (error instanceof ServicioNoEncontrado) return void res.status(404).json({ error: error.message })
+      if (error instanceof ServicioYaActivo) return void res.status(409).json({ error: error.message })
+      next(error)
+    }
+  })
+
   return rutas
 }

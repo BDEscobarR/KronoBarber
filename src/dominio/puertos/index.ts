@@ -125,10 +125,26 @@ export interface ServicioDAO {
    * @returns El servicio guardado, con el id que le asignó la base de datos.
    */
   guardar(servicio: ServicioNuevo): Promise<Servicio>
-  
-  porNombre(barberiaId: string, nombre: string): Promise<Servicio | null>;
-  activosDe(barberiaId: string): Promise<Servicio[]>;
-  cambiarEstado(id: string, activo: boolean): Promise<Servicio>;
+
+  /**
+   * Busca un servicio dentro de una barbería. Si el servicio existe pero es de otra barbería, no
+   * lo encuentra: el aislamiento multiempresa (RES-02) se aplica en la propia consulta.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param id Identificador del servicio.
+   * @returns El servicio, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  porId(barberiaId: string, id: string): Promise<Servicio | null>
+
+  /**
+   * Activa o desactiva un servicio. Un servicio se desactiva, nunca se borra (CAR-03). Si la
+   * transición está permitida lo decide el caso de uso, no el DAO.
+   *
+   * @param id Identificador de un servicio que ya existe (el caso de uso lo comprueba antes).
+   * @param activo `true` para volver a ofrecerlo; `false` para retirarlo de la vitrina.
+   * @returns El servicio con el estado nuevo.
+   */
+  cambiarEstado(id: string, activo: boolean): Promise<Servicio>
 
   /** Actualiza los campos editables solo si el servicio pertenece a la barbería indicada. */
   actualizar(

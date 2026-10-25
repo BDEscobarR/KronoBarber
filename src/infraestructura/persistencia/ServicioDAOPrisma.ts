@@ -92,11 +92,27 @@ export class ServicioDAOPrisma implements ServicioDAO {
     return filas.map(aDominio)
   }
 
+  /**
+   * Busca por id y barbería en la misma consulta: un servicio de otra barbería no se encuentra.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param id Identificador del servicio.
+   * @returns El servicio, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  async porId(barberiaId: string, id: string): Promise<Servicio | null> {
+    const fila = await this.prisma.servicio.findFirst({ where: { id, barberiaId } })
+    return fila && aDominio(fila)
+  }
+
+  /**
+   * Cambia solo la columna `activo`; el servicio nunca se borra.
+   *
+   * @param id Identificador de un servicio que ya existe.
+   * @param activo Estado de destino.
+   * @returns El servicio con el estado nuevo.
+   * @throws Error de Prisma (P2025) si el servicio no existe; el caso de uso lo comprueba antes.
+   */
   async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
-    const fila = await this.prisma.servicio.update({
-      where: { id },
-      data: { activo },
-    });
-    return aDominio(fila);
+    return aDominio(await this.prisma.servicio.update({ where: { id }, data: { activo } }))
   }
 }

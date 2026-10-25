@@ -35,6 +35,10 @@ export class ServicioDAOEnMemoria implements ServicioDAO {
     return this.filas.filter((s) => s.barberiaId === barberiaId)
   }
 
+  async porId(barberiaId: string, id: string): Promise<Servicio | null> {
+    return this.filas.find((s) => s.id === id && s.barberiaId === barberiaId) ?? null
+  }
+
   /** Imita a Prisma: `update` lanza si el servicio no existe. */
   async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
     const fila = this.filas.find((s) => s.id === id)
