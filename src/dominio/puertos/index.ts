@@ -6,8 +6,9 @@
 
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
+import type { Jornada, JornadaNueva } from '../modelo/Jornada'
 import type { CambiosServicio, Servicio, ServicioNuevo } from '../modelo/Servicio'
-import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
+import type { RolUsuario, Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
 /**
  * Acceso a datos de las barberías. Lo declara el dominio y lo implementa la infraestructura
@@ -109,6 +110,33 @@ export interface HorarioAtencionDAO {
    * @returns Los renglones guardados, con los ids que les asignó la base de datos.
    */
   reemplazar(barberiaId: string, renglones: HorarioAtencionNuevo[]): Promise<HorarioAtencion[]>
+}
+
+/**
+ * Acceso a datos de las jornadas de los barberos. Lo declara el dominio y lo implementa la
+ * infraestructura (`JornadaDAOPrisma`); las pruebas usan un doble en memoria.
+ *
+ * Filtra por barbero, no por barbería: quien lo usa comprueba antes que el barbero sea de la barbería
+ * de la URL (RES-02, `esBarberoDe`).
+ */
+export interface JornadaDAO {
+  /**
+   * Jornada completa de un barbero.
+   *
+   * @param barberoId Barbero dueño de la jornada.
+   * @returns Sus franjas, en cualquier orden; una lista vacía si todavía no tiene jornada.
+   */
+  deBarbero(barberoId: string): Promise<Jornada[]>
+
+  /**
+   * Reemplaza la jornada completa de un barbero en una sola operación atómica: borra sus franjas y
+   * guarda las nuevas. Si algo falla, la jornada anterior queda intacta.
+   *
+   * @param barberoId Barbero dueño de la jornada.
+   * @param franjas Franjas nuevas, todas de ese barbero.
+   * @returns Las franjas guardadas, con los ids que les asignó la base de datos.
+   */
+  reemplazar(barberoId: string, franjas: JornadaNueva[]): Promise<Jornada[]>
 }
 
 /**
@@ -215,4 +243,68 @@ export interface UsuarioDAO {
    * @returns El usuario, o `null` si ninguno usa ese correo.
    */
   porCorreo(correo: string): Promise<Usuario | null>
+}
+
+/**
+ * Quién hace una petición y con qué alcance (CAR-17): lo que viaja dentro del token de sesión. Lleva
+ * solo lo necesario para autorizar, nunca la clave ni su hash.
+ */
+export interface CredencialDTO {
+  /** Identificador del usuario que inició sesión. */
+  usuarioId: string
+  /** Rol con el que se decide qué puede hacer (RES-02). */
+  rol: RolUsuario
+  /**
+   * Barbería a la que pertenece: la llave del aislamiento multiempresa (RES-02). `null` para
+   * OPERADOR y CLIENTE, igual que en `Usuario`.
+   */
+  barberiaId: string | null
+}
+
+/**
+ * Cifrado de claves. Lo declara el dominio y lo implementa la infraestructura (`ClavesBcrypt`); las
+ * pruebas usan un doble en memoria. El dominio no sabe qué algoritmo hay detrás: la clave en claro
+ * entra aquí y solo sale el hash, que es lo único que se guarda (RES-13).
+ */
+export interface ServicioClaves {
+  /**
+   * Convierte una clave en claro en un hash irreversible.
+   *
+   * @param clave Clave en claro, ya validada por el caso de uso (D-09: de 10 a 64 caracteres).
+   * @returns El hash que se guarda en `Usuario.claveHash`.
+   */
+  cifrar(clave: string): Promise<string>
+
+  /**
+   * Comprueba si una clave en claro corresponde a un hash guardado.
+   *
+   * @param clave Clave en claro que escribió el usuario.
+   * @param claveHash Hash guardado en `Usuario.claveHash`.
+   * @returns `true` si la clave es la correcta.
+   */
+  comparar(clave: string, claveHash: string): Promise<boolean>
+}
+
+/**
+ * Emisión y verificación de los tokens de sesión. Lo declara el dominio y lo implementa la
+ * infraestructura (`TokensJwt`); las pruebas usan un doble en memoria. Cuánto dura una sesión
+ * (D-09: como máximo una hora) lo fija el adaptador.
+ */
+export interface ServicioTokens {
+  /**
+   * Emite el token de sesión de un usuario que acaba de iniciar sesión.
+   *
+   * @param credencial Quién es y con qué alcance.
+   * @returns El token, opaco para quien lo recibe.
+   */
+  emitir(credencial: CredencialDTO): string
+
+  /**
+   * Lee un token recibido en una petición. No lanza: un token inválido o vencido es un resultado
+   * normal, y decidir qué hacer con él (un 401) es de quien llama.
+   *
+   * @param token Token tal como llegó.
+   * @returns La credencial que lleva, o `null` si el token es inválido o ya venció.
+   */
+  verificar(token: string): CredencialDTO | null
 }

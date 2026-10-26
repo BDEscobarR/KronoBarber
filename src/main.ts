@@ -11,16 +11,20 @@ import { ActualizarPerfilBarberia } from './aplicacion/casos-uso/ActualizarPerfi
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
 import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
 import { ConfigurarHorarioAtencion } from './aplicacion/casos-uso/ConfigurarHorarioAtencion'
+import { ConsultarHorarioAtencion } from './aplicacion/casos-uso/ConsultarHorarioAtencion'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { DesactivarServicio } from './aplicacion/casos-uso/DesactivarServicio'
 import { ActivarServicio } from './aplicacion/casos-uso/ActivarServicio'
+import { DefinirJornada } from './aplicacion/casos-uso/DefinirJornada'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
 import { HorarioAtencionDAOPrisma } from './infraestructura/persistencia/HorarioAtencionDAOPrisma'
 import { ClavesBcrypt } from './infraestructura/seguridad/ClavesBcrypt'
 import { TokensJwt } from './infraestructura/seguridad/TokensJwt'
+import { UsuarioDAOPrisma } from './infraestructura/persistencia/UsuarioDAOPrisma'
+import { JornadaDAOPrisma } from './infraestructura/persistencia/JornadaDAOPrisma'
 import { crearServidor } from './infraestructura/http/servidor'
 
 /** Secreto de firma de las sesiones (CAR-17). Sin él la aplicación no arranca. */
@@ -34,19 +38,25 @@ const horarios = new HorarioAtencionDAOPrisma(prisma)
 // para que un JWT_SECRET ausente o débil impida arrancar desde ahora.
 const claves = new ClavesBcrypt()
 const tokens = new TokensJwt(secretoJwt)
+const usuarios = new UsuarioDAOPrisma(prisma)
+const jornadas = new JornadaDAOPrisma(prisma)
 
 const app = crearServidor({
   barberias,
   servicios,
+  usuarios,
+  jornadas,
   registrarBarberia: new RegistrarBarberia(barberias),
   actualizarPerfilBarberia: new ActualizarPerfilBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
   suspenderBarberia: new SuspenderBarberia(barberias),
   configurarHorario: new ConfigurarHorarioAtencion(barberias, horarios),
+  consultarHorario: new ConsultarHorarioAtencion(barberias, horarios),
   crearServicio: new CrearServicio(barberias, servicios),
   actualizarServicio: new ActualizarServicio(servicios),
   desactivarServicio: new DesactivarServicio(servicios),
   activarServicio: new ActivarServicio(servicios),
+  definirJornada: new DefinirJornada(barberias, usuarios, horarios, jornadas),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */
