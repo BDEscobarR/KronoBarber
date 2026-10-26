@@ -70,4 +70,18 @@ export class UsuarioDAOPrisma implements UsuarioDAO {
     const fila = await this.prisma.usuario.findUnique({ where: { correo } })
     return fila && aDominio(fila)
   }
+  // En src/infraestructura/persistencia/UsuarioDAOPrisma.ts
+
+async barberosDe(barberiaId: string): Promise<Usuario[]> {
+  const filas = await this.prisma.usuario.findMany({
+    where: {
+      barberiaId: barberiaId,
+      rol: 'BARBERO',
+      activo: true,
+    },
+  });
+
+  return filas.map((fila) => aDominio(fila));
 }
+}
+

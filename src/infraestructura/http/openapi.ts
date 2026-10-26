@@ -222,6 +222,71 @@ export const openapi = {
         },
       },
     },
+    '/barberos/{barberoId}/servicios': {
+      get: {
+        summary: 'Obtiene los servicios asignados a un barbero',
+        tags: ['Servicios'],
+        parameters: [
+          {
+            name: 'barberoId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Identificador del barbero',
+          },
+        ],
+        responses: {
+          200: {
+            description: 'Lista de servicios asignados al barbero',
+          },
+          500: {
+            description: 'Error interno del servidor',
+          },
+        },
+      },
+      put: {
+        summary: 'Asigna o actualiza los servicios de un barbero',
+        tags: ['Servicios'],
+        parameters: [
+          {
+            name: 'barberoId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' },
+            description: 'Identificador del barbero',
+          },
+        ],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                properties: {
+                  servicioIds: {
+                    type: 'array',
+                    items: { type: 'string', format: 'uuid' },
+                    example: ['5b0f7c1e-2a4d-4e8b-9f3a-1c2d3e4f5a6b'],
+                  },
+                },
+                required: ['servicioIds'],
+              },
+            },
+          },
+        },
+        responses: {
+          200: {
+            description: 'Servicios asignados correctamente',
+          },
+          400: {
+            description: 'Solicitud inválida o los servicios no pertenecen a la barbería del barbero',
+          },
+          404: {
+            description: 'El barbero o un servicio especificado no existe',
+          },
+        },
+      },
+    },
     '/barberias': {
       get: {
         tags: ['Barberías'],

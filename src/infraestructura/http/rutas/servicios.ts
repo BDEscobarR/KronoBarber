@@ -9,7 +9,7 @@ import {
   esDuracionValida,
   esPrecioValido,
 } from '../../../dominio/modelo/Servicio'
-import type { BarberiaDAO, ServicioDAO } from '../../../dominio/puertos'
+import type { BarberiaDAO, ServicioDAO, UsuarioDAO } from '../../../dominio/puertos'
 import {
   ServicioYaExiste,
   type CrearServicio,
@@ -23,6 +23,7 @@ import {
 import { ServicioYaInactivo, type DesactivarServicio } from '../../../aplicacion/casos-uso/DesactivarServicio'
 import { ServicioYaActivo, type ActivarServicio } from '../../../aplicacion/casos-uso/ActivarServicio'
 import { BarberiaNoEncontrada } from '../../../aplicacion/casos-uso/HabilitarBarberia'
+import { AsignarServiciosBarbero } from '../../../aplicacion/casos-uso/AsignarServiciosBarbero';
 
 /**
  * Validación de frontera de un servicio nuevo: lo que entra por HTTP es `unknown` hasta que se
@@ -105,6 +106,8 @@ export interface DependenciasServicios {
   barberias: BarberiaDAO
   /** Acceso directo al catálogo para la vitrina y el catálogo de gestión. */
   servicios: ServicioDAO
+  usuarioDAO: UsuarioDAO;
+  servicioDAO: ServicioDAO;
 }
 
 /**
@@ -181,6 +184,41 @@ export function rutasServicios(deps: DependenciasServicios): Router {
       if (error instanceof ServicioYaInactivo) return void res.status(409).json({ error: error.message })
       next(error)
     }
+<<<<<<< HEAD
+  });
+  // Asignar o actualizar servicios de un barbero
+rutas.put('/barberos/:barberoId/servicios', async (req, res) => {
+  try {
+    const { barberoId } = req.params;
+    const { servicioIds } = req.body;
+
+    if (!Array.isArray(servicioIds)) {
+      return res.status(400).json({ mensaje: 'servicioIds debe ser un arreglo de IDs.' });
+    }
+
+    const casoUso = new AsignarServiciosBarbero(deps.usuarioDAO, deps.servicioDAO);
+    const resultado = await casoUso.ejecutar(barberoId, servicioIds);
+
+    return res.status(200).json(resultado);
+  } catch (error: any) {
+    if (error.message.includes('no existe')) {
+      return res.status(404).json({ mensaje: error.message });
+    }
+    return res.status(400).json({ mensaje: error.message });
+  }
+});
+
+// Obtener los servicios asignados a un barbero
+rutas.get('/barberos/:barberoId/servicios', async (req, res) => {
+  try {
+    const { barberoId } = req.params;
+    const servicios = await deps.servicioDAO.deBarbero(barberoId);
+    return res.status(200).json(servicios);
+  } catch (error: any) {
+    return res.status(500).json({ mensaje: error.message });
+  }
+}); 
+=======
   })
 
   rutas.post('/:barberiaId/servicios/:id/activacion', async (req, res, next) => {
@@ -193,5 +231,7 @@ export function rutasServicios(deps: DependenciasServicios): Router {
     }
   })
 
+>>>>>>> develop
   return rutas
+  
 }

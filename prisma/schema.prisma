@@ -10,16 +10,16 @@ datasource db {
 // SQL Server no admite `enum` en Prisma: el estado se guarda como texto y la lista
 // de valores válidos vive en el dominio (ESTADOS_BARBERIA). El DAO la comprueba al leer.
 model Barberia {
-  id               String     @id @default(uuid()) @db.NVarChar(36)
-  nombre           String     @db.NVarChar(80)
-  descripcion      String     @default("") @db.NVarChar(500)
-  direccion        String     @db.NVarChar(200)
-  ciudad           String     @db.NVarChar(100)
-  telefono         String     @db.NVarChar(20)
-  correo           String     @unique @db.NVarChar(254)
-  estado           String     @default("PENDIENTE_VERIFICACION") @db.VarChar(30)
-  motivoSuspension String?    @db.NVarChar(500)
-  creadoEn         DateTime   @default(now())
+  id               String            @id @default(uuid()) @db.NVarChar(36)
+  nombre           String            @db.NVarChar(80)
+  descripcion      String            @default("") @db.NVarChar(500)
+  direccion        String            @db.NVarChar(200)
+  ciudad           String            @db.NVarChar(100)
+  telefono         String            @db.NVarChar(20)
+  correo           String            @unique @db.NVarChar(254)
+  estado           String            @default("PENDIENTE_VERIFICACION") @db.VarChar(30)
+  motivoSuspension String?           @db.NVarChar(500)
+  creadoEn         DateTime          @default(now())
   servicios        Servicio[]
   usuarios         Usuario[]
   horarios         HorarioAtencion[]
@@ -28,17 +28,20 @@ model Barberia {
 }
 
 model Servicio {
-  id              String   @id @default(uuid()) @db.NVarChar(36)
-  barberiaId      String   @db.NVarChar(36)
-  nombre          String   @db.NVarChar(80)
-  descripcion     String   @default("") @db.NVarChar(300)
+  id              String            @id @default(uuid()) @db.NVarChar(36)
+  barberiaId      String            @db.NVarChar(36)
+  nombre          String            @db.NVarChar(80)
+  descripcion     String            @default("") @db.NVarChar(300)
   precio          Int
   duracionMinutos Int
-  activo          Boolean  @default(true)
-  creadoEn        DateTime @default(now())
+  activo          Boolean           @default(true)
+  creadoEn        DateTime          @default(now())
   // SQL Server no admite `Restrict`; `NoAction` produce el mismo efecto: una barbería
   // con catálogo no se puede borrar. Las barberías se suspenden, no se borran.
-  barberia        Barberia @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  barberia        Barberia          @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  // Relación con la tabla puente BarberoServicio
+  barberos        BarberoServicio[]
 
   @@unique([barberiaId, nombre])
 }
@@ -46,25 +49,23 @@ model Servicio {
 // Igual que `estado` en Barberia: el rol es texto y la lista válida vive en el dominio
 // (ROLES_USUARIO). `barberiaId` es nulo para OPERADOR y CLIENTE, que no pertenecen a ninguna.
 model Usuario {
-  id         String    @id @default(uuid()) @db.NVarChar(36)
-  nombre     String    @db.NVarChar(100)
-  correo     String    @unique @db.NVarChar(254)
+  id                String            @id @default(uuid()) @db.NVarChar(36)
+  nombre            String            @db.NVarChar(100)
+  correo            String            @unique @db.NVarChar(254)
   // Hash de la clave, nunca la clave. Es ASCII: no necesita NVarChar.
-  claveHash  String    @db.VarChar(255)
-  rol        String    @db.VarChar(30)
-  barberiaId String?   @db.NVarChar(36)
-  activo     Boolean   @default(true)
-  creadoEn   DateTime  @default(now())
+  claveHash         String            @db.VarChar(255)
+  rol               String            @db.VarChar(30)
+  barberiaId        String?           @db.NVarChar(36)
+  activo            Boolean           @default(true)
+  creadoEn          DateTime          @default(now())
   // Una barbería con personal no se puede borrar, igual que una con catálogo.
-  barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  barberia          Barberia?         @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  
+  // Relación con la tabla puente BarberoServicio
+  serviciosPresta   BarberoServicio[]
 }
 
-// Horario de atención (CAR-05): límite exterior de toda disponibilidad (RES-07). SQL Server no
-// admite `enum`: `diaSemana` es texto y la lista válida vive en el dominio (DIAS_SEMANA); el DAO
-// la comprueba al leer. Un renglón es una franja semanal recurrente (diaSemana + horaInicio +
-// horaFin, con `fecha` nula) o un cierre puntual (`fecha`, con los demás campos nulos): ese día la
-// barbería no atiende, sin importar la franja semanal. Varias franjas por día permiten jornada
-// partida.
+// Horario de atención (CAR-05): límite exterior de toda disponibilidad (RES-07).
 model HorarioAtencion {
   id         String    @id @default(uuid()) @db.NVarChar(36)
   barberiaId String    @db.NVarChar(36)
@@ -73,10 +74,21 @@ model HorarioAtencion {
   horaInicio String?   @db.VarChar(5)
   horaFin    String?   @db.VarChar(5)
   creadoEn   DateTime  @default(now())
-  // Ver Servicio: SQL Server no admite `Restrict`; `NoAction` produce el mismo efecto, una
-  // barbería con horario no se puede borrar.
   barberia   Barberia  @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
   @@index([barberiaId, diaSemana])
   @@index([barberiaId, fecha])
+}
+
+// Tabla puente BarberoServicio (F3 - #17)
+model BarberoServicio {
+  barberoId  String   @db.NVarChar(36)
+  servicioId String   @db.NVarChar(36)
+  activo     Boolean  @default(true)
+  creadoEn   DateTime @default(now())
+
+  barbero  Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicio Servicio @relation(fields: [servicioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([barberoId, servicioId])
 }

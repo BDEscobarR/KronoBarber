@@ -121,4 +121,56 @@ export class ServicioDAOPrisma implements ServicioDAO {
   async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
     return aDominio(await this.prisma.servicio.update({ where: { id }, data: { activo } }))
   }
+  // En src/infraestructura/persistencia/ServicioDAOPrisma.ts
+
+async porId(id: string): Promise<Servicio | null> {
+    const fila = await this.prisma.servicio.findUnique({
+      where: { id },
+    });
+    return fila ? aDominio(fila) : null;
+  }
+
+  async deBarbero(barberoId: string): Promise<Servicio[]> {
+    const relaciones = await this.prisma.barberoServicio.findMany({
+      where: {
+        barberoId: barberoId,
+        activo: true,
+      },
+      include: {
+        servicio: true,
+      },
+    });
+
+    return relaciones.map((r) => aDominio(r.servicio));
+  }
+
+  async asignarABarbero(barberoId: string, servicioIds: string[]): Promise<void> {
+    await this.prisma.$transaction(async (tx) => {
+      // 1. Desvincular todo lo actual (soft delete)
+      await tx.barberoServicio.updateMany({
+        where: { barberoId },
+        data: { activo: false },
+      });
+
+      // 2. Insertar o reactivar las nuevas asignaciones
+      for (const servicioId of servicioIds) {
+        await tx.barberoServicio.upsert({
+          where: {
+            barberoId_servicioId: {
+              barberoId,
+              servicioId,
+            },
+          },
+          update: {
+            activo: true,
+          },
+          create: {
+            barberoId,
+            servicioId,
+            activo: true,
+          },
+        });
+      }
+    });
+  }
 }
