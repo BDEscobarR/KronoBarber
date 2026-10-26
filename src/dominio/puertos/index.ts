@@ -118,82 +118,30 @@ export interface HorarioAtencionDAO {
  * `Catalogo` no es una entidad: es la consulta `activosDe`.
  */
 export interface ServicioDAO {
-  /**
-   * Persiste un servicio nuevo.
-   *
-   * @param servicio Datos completos, sin id.
-   * @returns El servicio guardado, con el id que le asignó la base de datos.
-   */
   guardar(servicio: ServicioNuevo): Promise<Servicio>
-  
-  porNombre(barberiaId: string, nombre: string): Promise<Servicio | null>;
-  activosDe(barberiaId: string): Promise<Servicio[]>;
-  cambiarEstado(id: string, activo: boolean): Promise<Servicio>;
+  porNombre(barberiaId: string, nombre: string): Promise<Servicio | null>
+  activosDe(barberiaId: string): Promise<Servicio[]>
+  cambiarEstado(id: string, activo: boolean): Promise<Servicio>
 
-  /** Actualiza los campos editables solo si el servicio pertenece a la barbería indicada. */
   actualizar(
     id: string,
     barberiaId: string,
     cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
   ): Promise<Servicio | null>
 
-  /**
-   * Busca un servicio por su nombre dentro de una barbería. El nombre es único dentro de la
-   * barbería y se compara sin distinguir mayúsculas.
-   *
-   * @param barberiaId Barbería dueña del catálogo.
-   * @param nombre Nombre a buscar, sin espacios en los extremos.
-   * @returns El servicio, o `null` si la barbería no tiene uno con ese nombre.
-   */
-  porNombre(barberiaId: string, nombre: string): Promise<Servicio | null>
-
-  /**
-   * Catálogo vigente de una barbería: solo los servicios activos, ordenados por nombre.
-   *
-   * @param barberiaId Barbería dueña del catálogo.
-   * @returns Los servicios activos; una lista vacía si no tiene ninguno.
-   */
-  activosDe(barberiaId: string): Promise<Servicio[]>
-
-  /**
-   * Catálogo de gestión de una barbería (CAR-03): todos sus servicios, activos e inactivos,
-   * ordenados por nombre. El administrador ve también lo que retiró de la vitrina.
-   *
-   * @param barberiaId Barbería dueña del catálogo.
-   * @returns Todos los servicios de la barbería; una lista vacía si no tiene ninguno.
-   */
   deBarberia(barberiaId: string): Promise<Servicio[]>
+
+  // Métodos agregados para F3 / Issue #17
+  porId(id: string): Promise<Servicio | null>
+  deBarbero(barberoId: string): Promise<Servicio[]>
+  asignarABarbero(barberoId: string, servicioIds: string[]): Promise<void>
 }
 
-/**
- * Acceso a datos de las cuentas de usuario. Lo declara el dominio y lo implementa la
- * infraestructura (`UsuarioDAOPrisma`); las pruebas usan un doble en memoria.
- *
- * El DAO guarda y devuelve el hash de la clave tal cual: calcularlo y compararlo no es su trabajo.
- */
 export interface UsuarioDAO {
-  /**
-   * Persiste un usuario nuevo.
-   *
-   * @param usuario Datos completos, sin id, con la clave ya convertida en hash.
-   * @returns El usuario guardado, con el id que le asignó la base de datos.
-   */
   guardar(usuario: UsuarioNuevo): Promise<Usuario>
-
-  /**
-   * Busca un usuario por su identificador.
-   *
-   * @param id Identificador del usuario.
-   * @returns El usuario, o `null` si no existe.
-   */
   porId(id: string): Promise<Usuario | null>
-
-  /**
-   * Busca un usuario por su correo, la llave con la que inicia sesión y con la que se detecta un
-   * registro repetido.
-   *
-   * @param correo Correo ya normalizado en minúsculas.
-   * @returns El usuario, o `null` si ninguno usa ese correo.
-   */
   porCorreo(correo: string): Promise<Usuario | null>
+
+  // Método agregado para F3 / Issue #17
+  barberosDe(barberiaId: string): Promise<Usuario[]>
 }

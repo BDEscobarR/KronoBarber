@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { aBarberiaDTO, esEstadoBarberia, normalizarTelefono } from '../../../dominio/modelo/Barberia'
 import { DIAS_SEMANA, esDiaSemana, esFechaValida, esHoraValida } from '../../../dominio/modelo/HorarioAtencion'
 import type { BarberiaDAO } from '../../../dominio/puertos'
+
 import {
   BarberiaSuspendida,
   type ActualizacionPerfilBarberiaDTO,
