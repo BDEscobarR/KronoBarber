@@ -107,6 +107,15 @@ export interface ServicioClaves {
    * @param clave Clave en texto claro, solo durante el registro.
    */
   hash(clave: string): Promise<string>
+
+  /** Comprueba una clave en claro contra el hash almacenado. */
+  verificar(clave: string, hash: string): Promise<boolean>
+}
+
+/** Servicio de infraestructura que emite credenciales de sesión firmadas. */
+export interface ServicioTokens {
+  /** Emite un token de sesión a partir de la identidad y permisos del usuario. */
+  emitir(usuario: Usuario): Promise<string>
 }
 
 /**

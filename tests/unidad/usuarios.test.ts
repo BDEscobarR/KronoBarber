@@ -3,6 +3,7 @@ import { aUsuarioDTO, esRolUsuario, perteneceABarberia, ROLES_USUARIO, type Usua
 import { BarberiaRequeridaParaRol, ClaveInvalida, RegistrarUsuario, RolNoPerteneceABarberia } from '../../src/aplicacion/casos-uso/RegistrarUsuario'
 import { CorreoYaRegistrado } from '../../src/aplicacion/casos-uso/CorreoYaRegistrado'
 import { UsuarioDAOEnMemoria } from '../dobles/UsuarioDAOEnMemoria'
+import { CredencialesInvalidas, IniciarSesion } from '../../src/aplicacion/casos-uso/IniciarSesion'
 
 const ADMINISTRADOR: Usuario = {
   id: '1',
@@ -55,6 +56,9 @@ describe('RegistrarUsuario', () => {
         clavesGuardadas.push(clave)
         return `hash:${clave}`
       },
+      async verificar(clave, hash) {
+        return hash === `hash:${clave}`
+      },
     })
     return { usuarios, registrar, clavesGuardadas }
   }
@@ -101,5 +105,54 @@ describe('RegistrarUsuario', () => {
     await expect(registrar.ejecutar({ ...datos, clave: 'a'.repeat(65) }, 'CLIENTE')).rejects.toBeInstanceOf(ClaveInvalida)
     await expect(registrar.ejecutar({ ...datos, correo: 'min@ejemplo.co', clave: '1234567890' }, 'CLIENTE')).resolves.toBeDefined()
     await expect(registrar.ejecutar({ ...datos, correo: 'max@ejemplo.co', clave: 'a'.repeat(64) }, 'CLIENTE')).resolves.toBeDefined()
+  })
+})
+
+describe('IniciarSesion', () => {
+  const { id: _id, ...adminNuevo } = ADMINISTRADOR
+
+  function armar() {
+    const usuarios = new UsuarioDAOEnMemoria()
+    const tokensEmitidos: string[] = []
+    const claves = {
+      async hash(clave: string) { return `hash:${clave}` },
+      async verificar(clave: string, hash: string) { return hash === `hash:${clave}` },
+    }
+    const iniciar = new IniciarSesion(usuarios, claves, {
+      async emitir(usuario) {
+        const token = `token:${usuario.id}`
+        tokensEmitidos.push(token)
+        return token
+      },
+    })
+    return { usuarios, iniciar, tokensEmitidos }
+  }
+
+  it('emite un token y devuelve el DTO sin el hash para credenciales válidas', async () => {
+    const { usuarios, iniciar, tokensEmitidos } = armar()
+    await usuarios.guardar({ ...adminNuevo, claveHash: 'hash:claveSegura123' })
+
+    const sesion = await iniciar.ejecutar({ correo: ' LAURA@ELCLASICO.CO ', clave: 'claveSegura123' })
+
+    expect(sesion.token).toBe('token:1')
+    expect(sesion.usuario).toMatchObject({ correo: 'laura@elclasico.co', rol: 'ADMINISTRADOR' })
+    expect(sesion.usuario).not.toHaveProperty('claveHash')
+    expect(tokensEmitidos).toEqual(['token:1'])
+  })
+
+  it('usa el mismo error y mensaje para correo inexistente, cuenta inactiva y clave incorrecta', async () => {
+    const { usuarios, iniciar } = armar()
+    await usuarios.guardar({ ...adminNuevo, claveHash: 'hash:claveSegura123' })
+    await usuarios.guardar({ ...adminNuevo, correo: 'inactivo@ejemplo.co', activo: false, claveHash: 'hash:claveSegura123' })
+
+    const intentos = [
+      iniciar.ejecutar({ correo: 'noexiste@ejemplo.co', clave: 'claveSegura123' }),
+      iniciar.ejecutar({ correo: 'laura@elclasico.co', clave: 'incorrecta' }),
+      iniciar.ejecutar({ correo: 'inactivo@ejemplo.co', clave: 'claveSegura123' }),
+    ]
+    const resultados = await Promise.all(intentos.map((intento) => intento.catch((error: unknown) => error)))
+
+    expect(resultados.every((error) => error instanceof CredencialesInvalidas)).toBe(true)
+    expect(new Set(resultados.map((error) => (error as Error).message)).size).toBe(1)
   })
 })
