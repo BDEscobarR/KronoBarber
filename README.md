@@ -250,7 +250,7 @@ KronoBarber/
 │   │   │   ├── Usuario.ts             entidad + RolUsuario + perteneceABarberia() + UsuarioDTO (sin claveHash)
 │   │   │   └── HorarioAtencion.ts     entidad + DiaSemana + Franja + guardas de hora y fecha + seSolapan() (semilla de la regla 5)
 │   │   └── puertos/
-│   │       └── index.ts               BarberiaDAO, ServicioDAO, UsuarioDAO y HorarioAtencionDAO
+│   │       └── index.ts               BarberiaDAO, ServicioDAO, UsuarioDAO, HorarioAtencionDAO, ServicioClaves, ServicioTokens y CredencialDTO
 │   │
 │   ├── aplicacion/                    orquestación de las reglas
 │   │   └── casos-uso/
@@ -283,7 +283,7 @@ KronoBarber/
 │
 ├── tests/
 │   ├── unidad/                        barberias, servicios, horario y usuarios: casos de uso y reglas, sin BD ni red
-│   ├── dobles/                        BarberiaDAOEnMemoria, ServicioDAOEnMemoria, UsuarioDAOEnMemoria y HorarioAtencionDAOEnMemoria
+│   ├── dobles/                        un ...DAOEnMemoria por DAO, más ServicioClavesEnMemoria y ServicioTokensEnMemoria
 │   └── arquitectura.test.ts           verifica la regla de dependencias
 │
 ├── .env.example                       plantilla de variables (sí se versiona)
@@ -543,7 +543,9 @@ un cliente futuro) no tenga que deducir nada:
 ### Cómo se hace cumplir la regla
 
 `tests/arquitectura.test.ts` recorre `src/dominio/` y `src/aplicacion/` y falla si algún archivo importa
-de `infraestructura/`, de `express` o de `@prisma/` (y, en el caso del dominio, de `aplicacion/`). Corre
+de `infraestructura/`, de `express`, de `@prisma/`, de `bcryptjs` o de `jsonwebtoken` (y, en el caso del
+dominio, de `aplicacion/`). Las claves y los tokens se usan por los puertos `ServicioClaves` y
+`ServicioTokens`. Corre
 con `npm test` y por separado con `npm run arquitectura`.
 
 Está escrita como prueba, y no como un `grep` en `package.json`, porque en Windows npm ejecuta los
