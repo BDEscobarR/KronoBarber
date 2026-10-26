@@ -19,11 +19,21 @@ import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
 import { HorarioAtencionDAOPrisma } from './infraestructura/persistencia/HorarioAtencionDAOPrisma'
+import { ClavesBcrypt } from './infraestructura/seguridad/ClavesBcrypt'
+import { TokensJwt } from './infraestructura/seguridad/TokensJwt'
 import { crearServidor } from './infraestructura/http/servidor'
+
+/** Secreto de firma de las sesiones (CAR-17). Sin él la aplicación no arranca. */
+const secretoJwt = process.env['JWT_SECRET']
+if (!secretoJwt) throw new Error('Falta JWT_SECRET (copia .env.example a .env)')
 
 const barberias = new BarberiaDAOPrisma(prisma)
 const servicios = new ServicioDAOPrisma(prisma)
 const horarios = new HorarioAtencionDAOPrisma(prisma)
+// Todavía no los usa ningún caso de uso: entran con el registro y el inicio de sesión. Se crean ya
+// para que un JWT_SECRET ausente o débil impida arrancar desde ahora.
+const claves = new ClavesBcrypt()
+const tokens = new TokensJwt(secretoJwt)
 
 const app = crearServidor({
   barberias,

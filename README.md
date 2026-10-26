@@ -272,6 +272,9 @@ KronoBarber/
 │   │   │   ├── UsuarioDAOPrisma.ts    adaptador: implementa UsuarioDAO con Prisma
 │   │   │   ├── HorarioAtencionDAOPrisma.ts  adaptador: implementa HorarioAtencionDAO con Prisma
 │   │   │   └── generado/              (no versionado) cliente generado por Prisma
+│   │   ├── seguridad/
+│   │   │   ├── ClavesBcrypt.ts        adaptador: implementa ServicioClaves con bcryptjs
+│   │   │   └── TokensJwt.ts           adaptador: implementa ServicioTokens con JWT HS256; la sesión dura una hora (D-09)
 │   │   └── http/
 │   │       ├── servidor.ts            arma la app Express: prefijo /api, Swagger, 404, errores
 │   │       ├── openapi.ts             contrato OpenAPI 3.0.3 como objeto TS
@@ -282,7 +285,7 @@ KronoBarber/
 │   └── main.ts                        raíz de composición: el único con `new`
 │
 ├── tests/
-│   ├── unidad/                        barberias, servicios, horario y usuarios: casos de uso y reglas, sin BD ni red
+│   ├── unidad/                        barberias, servicios, horario, usuarios y seguridad: casos de uso, reglas y adaptadores de seguridad, sin BD ni red
 │   ├── dobles/                        BarberiaDAOEnMemoria, ServicioDAOEnMemoria, UsuarioDAOEnMemoria y HorarioAtencionDAOEnMemoria
 │   └── arquitectura.test.ts           verifica la regla de dependencias
 │
@@ -372,6 +375,7 @@ La configuración entra por variables de entorno, nunca por el código (RES-13):
 | `BD_CIFRADO` | `false` desactiva el cifrado de la conexión | No (`true`) |
 | `BD_CONFIAR_CERTIFICADO` | `true` acepta el certificado autofirmado de un SQL Server local | No (`false`) |
 | `PUERTO` | Puerto HTTP | No (3000) |
+| `JWT_SECRET` | Secreto con el que se firman los tokens de sesión (CAR-17). Al menos 32 caracteres, distinto en cada máquina | Sí: sin él la aplicación no arranca |
 
 Las mismas variables sirven a los dos consumidores:
 
@@ -417,7 +421,7 @@ GO
 
 ```bash
 npm install                      # el postinstall genera el cliente de Prisma
-cp .env.example .env             # en PowerShell: Copy-Item .env.example .env; luego poner la contraseña
+cp .env.example .env             # en PowerShell: Copy-Item .env.example .env; luego poner la contraseña y JWT_SECRET
 npm run db:migrate               # aplica las migraciones (crea las tablas Barberia, Servicio, Usuario y HorarioAtencion)
 npm run dev                      # KronoBarber escuchando en http://localhost:3000/api (documentación en /api/docs)
 ```
@@ -437,7 +441,7 @@ npm run dev                      # KronoBarber escuchando en http://localhost:30
 | `npm run cov` | Vitest una pasada con cobertura (puede pedir instalar `@vitest/coverage-v8`) |
 | `npm run db:migrate` | `prisma migrate dev`: genera el SQL en `prisma/migrations/` y lo aplica. En Prisma 7 **no** regenera el cliente |
 | `npm run db:studio` | Explorador visual de datos de Prisma |
-| `npm run arquitectura` | Falla si `dominio/` o `aplicacion/` importan infraestructura, Express o Prisma |
+| `npm run arquitectura` | Falla si `dominio/` o `aplicacion/` importan infraestructura, Express, Prisma, bcryptjs o jsonwebtoken |
 | `postinstall` | Automático tras `npm install`: `prisma generate` |
 
 **Cuando cambies el esquema**: edita `prisma/schema.prisma`, corre `npm run db:migrate` (pide un nombre
@@ -535,7 +539,7 @@ un cliente futuro) no tenga que deducir nada:
 | Patrón | Dónde | Estado |
 |---|---|---|
 | **DAO / Repository** | `dominio/puertos`: `guardar`, `porId`, `activosDe`; nunca SQL | Implementado |
-| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`, `UsuarioDAOPrisma`, `HorarioAtencionDAOPrisma`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia) |
+| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`, `UsuarioDAOPrisma`, `HorarioAtencionDAOPrisma`, `ClavesBcrypt`, `TokensJwt`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia y seguridad) |
 | **Strategy** | `PoliticaCancelacion`, `PoliticaAsignacionEspacios` | con la reserva |
 | **State** | `Turno` + `EstadoTurno`: las transiciones inválidas se vuelven imposibles | con el turno |
 | **Observer** | Eventos del turno que disparan notificaciones e historial | con la reserva |
@@ -627,6 +631,7 @@ de `main` y se fusionan en `develop`, y `develop` llega a `main` a través de un
 | Corrección de un caso sin publicar | La **rama original** del caso, que ya existe | `develop`, por un PR nuevo | El de la rama original | `feature/F1-09-suspender-barberia` (#9, reabierto) |
 | Release | `main` | `main`, por PR | `release/vX.Y.Z`, por versión | `release/v0.1.0` |
 | Hotfix | `main` | `main`, directamente, por PR | `hotfix/fase-id-nombredescriptivodelcaso` | `hotfix/f1-09-…`, si corrige el caso #9 |
+| Temporal | La rama `feature/…` de un caso que depende de otro sin fusionar | **Ninguna**: no se publica y se borra al terminar | `temporal/fase-id` | `temporal/f4-23` (ver *Proceso para fusionar*) |
 
 - **`fase`**: `f` en minúscula y el número de la fase (`f1`).
 - **`id`**: el número del issue que se trabaja (`21`). En un hotfix es el del caso reabierto que corrige.
@@ -659,6 +664,29 @@ Las releases siguen el versionado semántico, `MAYOR.MENOR.PARCHE`:
 4. Abrir el PR hacia `develop` citando el issue. GitHub solo cierra issues automáticamente al fusionar en la
    rama por defecto (`main`), así que el issue se cierra a mano, y solo cuando cumple todos sus criterios
    de aceptación.
+
+**Un caso que depende de otro que todavía no se fusiona**
+
+*El problema.* Pasó con #23 (adaptadores `ClavesBcrypt` y `TokensJwt`): implementa los puertos
+`ServicioClaves` y `ServicioTokens` de #22, pero #22 estaba en revisión (PR #91), ni en `main` ni en
+`develop`. Una rama de #23 sacada de `main` no compila, porque no existen las interfaces que implementa.
+Fusionar la rama de #22 en la de #23 tampoco sirve: el PR de #23 arrastraría los commits de #22, se
+revisaría dos veces el mismo cambio y, si #22 cambia en la revisión, las dos ramas quedan en conflicto.
+
+*La solución.* Se trabaja con los cambios de #22 a la mano, pero solo los de #23 llegan a su rama:
+
+1. Crear la rama del caso desde `main` actualizado, como siempre
+   (`git switch -c feature/f4-23-claves-bcrypt-tokens-jwt`).
+2. Desde ella, sacar una rama **temporal** y fusionarle la rama del caso del que depende:
+   `git switch -c temporal/f4-23` y `git merge feature/f4-22-servicios-tokens-credenciales`.
+3. Implementar en la temporal, con `npx tsc --noEmit` y `npx vitest run` en verde: ahí sí compila.
+4. Llevar los cambios a la rama del caso con `git stash push -u` (`-u` incluye los archivos nuevos),
+   `git switch feature/f4-23-claves-bcrypt-tokens-jwt` y `git stash pop`. Como el stash guarda solo lo que
+   cambió sobre la temporal, a la rama del caso llega únicamente el trabajo de #23.
+5. Hacer el commit en la rama del caso y borrar la temporal (`git branch -D temporal/f4-23`). La
+   temporal nunca se sube ni se fusiona.
+6. La rama del caso no compila sola hasta que la dependencia llegue a `develop`. Cuando llegue, se sigue el
+   paso 2 de *Un caso en `develop`* (fusionar `develop` en la rama), se verifica en verde y se abre el PR.
 
 **Una corrección de un caso ya integrado en `develop`** (todavía sin publicar)
 
