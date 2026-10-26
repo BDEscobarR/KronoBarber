@@ -57,6 +57,8 @@ model Usuario {
   creadoEn   DateTime  @default(now())
   // Una barbería con personal no se puede borrar, igual que una con catálogo.
   barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  // ... campos existentes de Usuario
+  ausencias Ausencia[]
 }
 
 // Horario de atención (CAR-05): límite exterior de toda disponibilidad (RES-07). SQL Server no
@@ -79,4 +81,17 @@ model HorarioAtencion {
 
   @@index([barberiaId, diaSemana])
   @@index([barberiaId, fecha])
+}
+model Ausencia {
+  id        String   @id @default(uuid()) @db.NVarChar(36)
+  barberoId String   @db.NVarChar(36)
+  tipo      String   @db.VarChar(30) // DIA_LIBRE, PERMISO, BLOQUEO
+  desde     DateTime
+  hasta     DateTime
+  estado    String   @default("ACTIVA") @db.VarChar(30) // ACTIVA, ANULADA
+  creadoEn  DateTime @default(now())
+
+  barbero   Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([barberoId, desde, hasta])
 }
