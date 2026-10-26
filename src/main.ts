@@ -11,6 +11,7 @@ import { ActualizarPerfilBarberia } from './aplicacion/casos-uso/ActualizarPerfi
 import { HabilitarBarberia } from './aplicacion/casos-uso/HabilitarBarberia'
 import { SuspenderBarberia } from './aplicacion/casos-uso/SuspenderBarberia'
 import { ConfigurarHorarioAtencion } from './aplicacion/casos-uso/ConfigurarHorarioAtencion'
+import { ConsultarHorarioAtencion } from './aplicacion/casos-uso/ConsultarHorarioAtencion'
 import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { DesactivarServicio } from './aplicacion/casos-uso/DesactivarServicio'
@@ -40,6 +41,7 @@ const app = crearServidor({
   habilitarBarberia: new HabilitarBarberia(barberias),
   suspenderBarberia: new SuspenderBarberia(barberias),
   configurarHorario: new ConfigurarHorarioAtencion(barberias, horarios),
+  consultarHorario: new ConsultarHorarioAtencion(barberias, horarios),
   crearServicio: new CrearServicio(barberias, servicios),
   actualizarServicio: new ActualizarServicio(servicios),
   desactivarServicio: new DesactivarServicio(servicios),
