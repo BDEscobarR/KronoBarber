@@ -1,4 +1,4 @@
-import type { Servicio, ServicioNuevo } from '../../src/dominio/modelo/Servicio'
+import type { CambiosServicio, Servicio, ServicioNuevo } from '../../src/dominio/modelo/Servicio'
 import type { ServicioDAO } from '../../src/dominio/puertos'
 
 export class ServicioDAOEnMemoria implements ServicioDAO {
@@ -10,14 +10,12 @@ export class ServicioDAOEnMemoria implements ServicioDAO {
     return fila
   }
 
-  async actualizar(
-    id: string,
-    barberiaId: string,
-    cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
-  ): Promise<Servicio | null> {
+  /** Igual que el adaptador de Prisma: con `descripcion` en `null`, la conserva. */
+  async actualizar(id: string, barberiaId: string, cambios: CambiosServicio): Promise<Servicio | null> {
     const fila = this.filas.find((s) => s.id === id && s.barberiaId === barberiaId)
     if (!fila) return null
-    Object.assign(fila, cambios)
+    const { descripcion, ...resto } = cambios
+    Object.assign(fila, descripcion === null ? resto : { ...resto, descripcion })
     return fila
   }
 
@@ -33,6 +31,10 @@ export class ServicioDAOEnMemoria implements ServicioDAO {
 
   async deBarberia(barberiaId: string): Promise<Servicio[]> {
     return this.filas.filter((s) => s.barberiaId === barberiaId)
+  }
+
+  async porId(barberiaId: string, id: string): Promise<Servicio | null> {
+    return this.filas.find((s) => s.id === id && s.barberiaId === barberiaId) ?? null
   }
 
   /** Imita a Prisma: `update` lanza si el servicio no existe. */

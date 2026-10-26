@@ -2,11 +2,17 @@ import { Router } from 'express'
 import { aBarberiaDTO, esEstadoBarberia, normalizarTelefono } from '../../../dominio/modelo/Barberia'
 import { DIAS_SEMANA, esDiaSemana, esFechaValida, esHoraValida } from '../../../dominio/modelo/HorarioAtencion'
 import type { BarberiaDAO } from '../../../dominio/puertos'
+<<<<<<< HEAD
 
 import {
   BarberiaSuspendida,
   type ActualizacionPerfilBarberiaDTO,
   type ActualizarPerfilBarberia,
+=======
+import type {
+  ActualizacionPerfilBarberiaDTO,
+  ActualizarPerfilBarberia,
+>>>>>>> develop
 } from '../../../aplicacion/casos-uso/ActualizarPerfilBarberia'
 import {
   HorarioInvalido,
@@ -25,8 +31,10 @@ import {
   type RegistroBarberiaDTO,
 } from '../../../aplicacion/casos-uso/RegistrarBarberia'
 import {
+  BarberiaNoHabilitada,
   BarberiaYaSuspendida,
   type SuspenderBarberia,
+  type SuspensionBarberiaDTO,
 } from '../../../aplicacion/casos-uso/SuspenderBarberia'
 
 /** Forma mínima de un correo: algo@algo.algo, sin espacios. */
@@ -109,6 +117,20 @@ function validarHorario(barberiaId: string, cuerpo: unknown): ConfiguracionHorar
   return { barberiaId, franjas: validas, cierres }
 }
 
+/**
+ * Validación de frontera de la suspensión: el motivo es obligatorio (D-02) y su límite coincide con el
+ * tamaño de la columna `motivoSuspension`.
+ *
+ * @param id Barbería tomada de la URL.
+ * @param cuerpo Cuerpo de la petición, sin validar.
+ * @returns Los datos listos para `SuspenderBarberia`, o el mensaje de error para responder un 400.
+ */
+function validarSuspension(id: string, cuerpo: unknown): SuspensionBarberiaDTO | string {
+  const { motivo } = (cuerpo ?? {}) as Record<string, unknown>
+  if (!textoEntre(motivo, 10, 500)) return 'motivo requerido (entre 10 y 500 caracteres)'
+  return { id, motivo }
+}
+
 /** Lo que necesitan las rutas de barberías; `main.ts` lo arma con implementaciones concretas. */
 export interface DependenciasBarberias {
   /** Caso de uso del registro (CAR-01). */
@@ -117,7 +139,7 @@ export interface DependenciasBarberias {
   actualizarPerfilBarberia: ActualizarPerfilBarberia
   /** Caso de uso de la habilitación (CAR-02). */
   habilitarBarberia: HabilitarBarberia
-  
+  /** Caso de uso de la suspensión, con motivo (CAR-02, D-02). */
   suspenderBarberia: SuspenderBarberia
   /** Acceso directo para las consultas que no tienen reglas propias. */
   barberias: BarberiaDAO
@@ -134,6 +156,7 @@ export interface DependenciasBarberias {
  * - `GET /:id`: detalle en cualquier estado. Responde 200 o 404.
  * - `PUT /:id`: reemplaza el perfil. Responde 200, 400, 404 o 409.
  * - `POST /:id/habilitacion`: el operador la habilita. Responde 200, 404 o 409.
+ * - `POST /:id/suspension`: el operador la suspende, con motivo. Responde 200, 400, 404 o 409.
  * - `PUT /:id/horario`: reemplaza franjas semanales y cierres por fecha. Responde 200, 400 o 404.
  *
  * Cada handler valida, llama al caso de uso, responde con el DTO y traduce los errores de negocio
@@ -184,6 +207,7 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
   })
 
   // Edición del perfil (CAR-01): el estado no viaja en el cuerpo, lo cambian las acciones del operador.
+  // Vale también sobre una barbería suspendida, que sigue suspendida (D-03).
   rutas.put('/:id', async (req, res, next) => {
     const datos = validarActualizacion(req.params.id, req.body)
     if (typeof datos === 'string') return void res.status(400).json({ error: datos })
@@ -191,8 +215,7 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
       res.json(aBarberiaDTO(await deps.actualizarPerfilBarberia.ejecutar(datos)))
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
-      if (error instanceof BarberiaSuspendida || error instanceof CorreoDeBarberiaYaRegistrado)
-        return void res.status(409).json({ error: error.message })
+      if (error instanceof CorreoDeBarberiaYaRegistrado) return void res.status(409).json({ error: error.message })
       next(error)
     }
   })
@@ -207,14 +230,18 @@ export function rutasBarberias(deps: DependenciasBarberias): Router {
       next(error)
     }
   })
-  
-  // Acción del operador con efecto propio: POST a un sub-recurso de suspensión.
+
+  // Acción del operador con efecto propio, como la habilitación, pero con motivo en el cuerpo (D-02). La
+  // respuesta es `BarberiaDTO`, que no lleva el motivo: leerlo queda para el operador y el administrador.
   rutas.post('/:id/suspension', async (req, res, next) => {
+    const datos = validarSuspension(req.params.id, req.body)
+    if (typeof datos === 'string') return void res.status(400).json({ error: datos })
     try {
-      res.json(aBarberiaDTO(await deps.suspenderBarberia.ejecutar(req.params.id)))
+      res.json(aBarberiaDTO(await deps.suspenderBarberia.ejecutar(datos)))
     } catch (error) {
       if (error instanceof BarberiaNoEncontrada) return void res.status(404).json({ error: error.message })
-      if (error instanceof BarberiaYaSuspendida) return void res.status(409).json({ error: error.message })
+      if (error instanceof BarberiaYaSuspendida || error instanceof BarberiaNoHabilitada)
+        return void res.status(409).json({ error: error.message })
       next(error)
     }
   })

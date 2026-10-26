@@ -11,11 +11,17 @@ import {
 } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
 import {
   ActualizarPerfilBarberia,
-  BarberiaSuspendida,
   type ActualizacionPerfilBarberiaDTO,
 } from '../../src/aplicacion/casos-uso/ActualizarPerfilBarberia'
+import {
+  BarberiaNoHabilitada,
+  BarberiaYaSuspendida,
+  SuspenderBarberia,
+} from '../../src/aplicacion/casos-uso/SuspenderBarberia'
 import { aBarberiaDTO, esVisibleParaClientes } from '../../src/dominio/modelo/Barberia'
 import { BarberiaDAOEnMemoria } from '../dobles/BarberiaDAOEnMemoria'
+import { HorarioAtencionDAOEnMemoria } from '../dobles/HorarioAtencionDAOEnMemoria'
+import { ServicioDAOEnMemoria } from '../dobles/ServicioDAOEnMemoria'
 
 const EL_CLASICO: RegistroBarberiaDTO = {
   nombre: '  Barbería El Clásico ',
@@ -43,8 +49,12 @@ function armar() {
     registrar: new RegistrarBarberia(barberias),
     habilitar: new HabilitarBarberia(barberias),
     actualizar: new ActualizarPerfilBarberia(barberias),
+    suspender: new SuspenderBarberia(barberias),
   }
 }
+
+/** Motivo válido de suspensión: entre 10 y 500 caracteres (D-02). */
+const MOTIVO = 'Incumple la política de precios'
 
 describe('RegistrarBarberia', () => {
   it('registra la barbería pendiente de verificación, con los datos normalizados', async () => {
@@ -107,6 +117,59 @@ describe('HabilitarBarberia', () => {
   })
 })
 
+describe('SuspenderBarberia', () => {
+  it('suspende una barbería habilitada, la saca de la vista de los clientes y guarda el motivo (RES-11)', async () => {
+    const { registrar, habilitar, suspender } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+    await habilitar.ejecutar(creada.id)
+
+    const suspendida = await suspender.ejecutar({ id: creada.id, motivo: `  ${MOTIVO}  ` })
+
+    expect(suspendida).toMatchObject({ estado: 'SUSPENDIDA', motivoSuspension: MOTIVO })
+    expect(esVisibleParaClientes(suspendida)).toBe(false)
+  })
+
+  it('no suspende una barbería pendiente de verificación (D-02)', async () => {
+    const { registrar, suspender, barberias } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+
+    await expect(suspender.ejecutar({ id: creada.id, motivo: MOTIVO })).rejects.toBeInstanceOf(BarberiaNoHabilitada)
+    expect(await barberias.porId(creada.id)).toMatchObject({ estado: 'PENDIENTE_VERIFICACION', motivoSuspension: null })
+  })
+
+  it('no suspende dos veces la misma barbería', async () => {
+    const { registrar, habilitar, suspender } = armar()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+    await habilitar.ejecutar(creada.id)
+    await suspender.ejecutar({ id: creada.id, motivo: MOTIVO })
+
+    await expect(suspender.ejecutar({ id: creada.id, motivo: MOTIVO })).rejects.toBeInstanceOf(BarberiaYaSuspendida)
+  })
+
+  it('falla si la barbería no existe, con el mismo error que reconoce la ruta', async () => {
+    const { suspender } = armar()
+
+    await expect(suspender.ejecutar({ id: 'no-existe', motivo: MOTIVO })).rejects.toBeInstanceOf(BarberiaNoEncontrada)
+  })
+
+  it('no borra información histórica: el catálogo y el horario siguen', async () => {
+    const { registrar, habilitar, suspender } = armar()
+    const servicios = new ServicioDAOEnMemoria()
+    const horarios = new HorarioAtencionDAOEnMemoria()
+    const creada = await registrar.ejecutar({ ...EL_CLASICO })
+    await habilitar.ejecutar(creada.id)
+    await servicios.guardar({
+      barberiaId: creada.id, nombre: 'Corte clásico', descripcion: '', precio: 25000, duracionMinutos: 30, activo: true,
+    })
+    await horarios.guardar({ barberiaId: creada.id, diaSemana: 'LUNES', fecha: null, franja: { inicio: '08:00', fin: '12:00' } })
+
+    await suspender.ejecutar({ id: creada.id, motivo: MOTIVO })
+
+    expect(await servicios.deBarberia(creada.id)).toHaveLength(1)
+    expect(await horarios.deBarberia(creada.id)).toHaveLength(1)
+  })
+})
+
 describe('ActualizarPerfilBarberia', () => {
   it('actualiza nombre, ubicación, contacto y descripción, con los datos normalizados', async () => {
     const { registrar, actualizar } = armar()
@@ -161,13 +224,17 @@ describe('ActualizarPerfilBarberia', () => {
     ).rejects.toBeInstanceOf(CorreoDeBarberiaYaRegistrado)
   })
 
-  it('está bloqueada si la barbería está suspendida, y no cambia nada', async () => {
-    const { registrar, actualizar, barberias } = armar()
+  it('edita una barbería suspendida, que sigue suspendida y sin verse (D-03, RES-11)', async () => {
+    const { registrar, habilitar, suspender, actualizar, barberias } = armar()
     const creada = await registrar.ejecutar({ ...EL_CLASICO })
-    await barberias.cambiarEstado(creada.id, 'SUSPENDIDA', 'Incumple la política de precios')
+    await habilitar.ejecutar(creada.id)
+    await suspender.ejecutar({ id: creada.id, motivo: MOTIVO })
 
-    await expect(actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })).rejects.toBeInstanceOf(BarberiaSuspendida)
-    expect(await barberias.porId(creada.id)).toMatchObject({ nombre: 'Barbería El Clásico', estado: 'SUSPENDIDA' })
+    const actualizada = await actualizar.ejecutar({ ...PERFIL_NUEVO, id: creada.id })
+
+    expect(actualizada).toMatchObject({ nombre: 'Barbería El Moderno', estado: 'SUSPENDIDA', motivoSuspension: MOTIVO })
+    expect(esVisibleParaClientes(actualizada)).toBe(false)
+    expect(await barberias.habilitadas(null)).toEqual([])
   })
 
   it('falla si la barbería no existe', async () => {

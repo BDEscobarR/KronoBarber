@@ -1,6 +1,6 @@
 import type { PrismaClient } from './generado/client'
 import type { ServicioModel as FilaServicio } from './generado/models'
-import type { Servicio, ServicioNuevo } from '../../dominio/modelo/Servicio'
+import type { CambiosServicio, Servicio, ServicioNuevo } from '../../dominio/modelo/Servicio'
 import type { ServicioDAO } from '../../dominio/puertos'
 
 /**
@@ -41,13 +41,19 @@ export class ServicioDAOPrisma implements ServicioDAO {
     return aDominio(await this.prisma.servicio.create({ data: servicio }))
   }
 
-  /** Actualiza por id y barbería para aplicar el aislamiento multiempresa en la propia escritura. */
-  async actualizar(
-    id: string,
-    barberiaId: string,
-    cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
-  ): Promise<Servicio | null> {
-    const resultado = await this.prisma.servicio.updateMany({ where: { id, barberiaId }, data: cambios })
+  /**
+   * Actualiza por id y barbería para aplicar el aislamiento multiempresa en la propia escritura. La
+   * descripción solo se escribe si viene; en `null`, la columna conserva su valor (D-05).
+   *
+   * @param id Identificador del servicio.
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param cambios Datos editables, ya normalizados.
+   * @returns El servicio actualizado, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  async actualizar(id: string, barberiaId: string, cambios: CambiosServicio): Promise<Servicio | null> {
+    const { descripcion, ...resto } = cambios
+    const data = descripcion === null ? resto : { ...resto, descripcion }
+    const resultado = await this.prisma.servicio.updateMany({ where: { id, barberiaId }, data })
     if (resultado.count === 0) return null
     const fila = await this.prisma.servicio.findUnique({ where: { id } })
     return fila ? aDominio(fila) : null
@@ -92,12 +98,28 @@ export class ServicioDAOPrisma implements ServicioDAO {
     return filas.map(aDominio)
   }
 
+  /**
+   * Busca por id y barbería en la misma consulta: un servicio de otra barbería no se encuentra.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param id Identificador del servicio.
+   * @returns El servicio, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  async porId(barberiaId: string, id: string): Promise<Servicio | null> {
+    const fila = await this.prisma.servicio.findFirst({ where: { id, barberiaId } })
+    return fila && aDominio(fila)
+  }
+
+  /**
+   * Cambia solo la columna `activo`; el servicio nunca se borra.
+   *
+   * @param id Identificador de un servicio que ya existe.
+   * @param activo Estado de destino.
+   * @returns El servicio con el estado nuevo.
+   * @throws Error de Prisma (P2025) si el servicio no existe; el caso de uso lo comprueba antes.
+   */
   async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
-    const fila = await this.prisma.servicio.update({
-      where: { id },
-      data: { activo },
-    });
-    return aDominio(fila);
+    return aDominio(await this.prisma.servicio.update({ where: { id }, data: { activo } }))
   }
   // En src/infraestructura/persistencia/ServicioDAOPrisma.ts
 

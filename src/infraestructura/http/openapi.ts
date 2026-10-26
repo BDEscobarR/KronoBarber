@@ -63,6 +63,23 @@ const actualizacionPerfilBarberia = {
     'ubicación y contacto. No cambia el estado. Una descripción omitida queda vacía.',
 }
 
+/** Esquema de `SuspensionBarberiaDTO`; el límite coincide con la validación de la ruta y la columna. */
+const suspensionBarberia = {
+  type: 'object',
+  description:
+    'Motivo de la suspensión (`SuspensionBarberiaDTO`). El id de la barbería se toma de la URL. El motivo se ' +
+    'guarda, pero no sale en `BarberiaDTO`.',
+  properties: {
+    motivo: {
+      type: 'string',
+      minLength: 10,
+      maxLength: 500,
+      example: 'Incumple la política de precios publicada',
+    },
+  },
+  required: ['motivo'],
+}
+
 /** Esquema de `ServicioDTO`. */
 const servicio = {
   type: 'object',
@@ -317,13 +334,16 @@ export const openapi = {
       put: {
         tags: ['Barberías'],
         summary: 'Actualiza el perfil: nombre, ubicación, contacto y descripción (CAR-01)',
+        description:
+          'Vale en cualquier estado. Una barbería suspendida también se puede editar, para corregir lo que ' +
+          'motivó la suspensión, pero sigue suspendida y sin verse hasta que el operador la habilite (D-03).',
         parameters: [parametroId('id')],
         requestBody: { required: true, content: json('ActualizacionPerfilBarberiaDTO') },
         responses: {
           200: { description: 'Perfil actualizado, con el mismo estado', content: json('BarberiaDTO') },
           400: fallo('Datos inválidos'),
           404: fallo('No existe'),
-          409: fallo('La barbería está suspendida o el correo ya lo usa otra barbería'),
+          409: fallo('El correo ya lo usa otra barbería'),
         },
       },
     },
@@ -336,6 +356,23 @@ export const openapi = {
           200: { description: 'Barbería habilitada', content: json('BarberiaDTO') },
           404: fallo('No existe'),
           409: fallo('Ya estaba habilitada'),
+        },
+      },
+    },
+    '/barberias/{id}/suspension': {
+      post: {
+        tags: ['Barberías'],
+        summary: 'El operador suspende una barbería habilitada, con motivo (CAR-02)',
+        description:
+          'Suspendida, la barbería no se ve ni recibe reservas, pero no se borra nada y su administrador puede ' +
+          'seguir editándola. Solo se suspende una barbería habilitada.',
+        parameters: [parametroId('id')],
+        requestBody: { required: true, content: json('SuspensionBarberiaDTO') },
+        responses: {
+          200: { description: 'Barbería suspendida (la respuesta no lleva el motivo)', content: json('BarberiaDTO') },
+          400: fallo('Motivo ausente, de menos de 10 o de más de 500 caracteres'),
+          404: fallo('No existe'),
+          409: fallo('Ya estaba suspendida, o sigue pendiente de verificación'),
         },
       },
     },
@@ -394,7 +431,10 @@ export const openapi = {
     '/barberias/{barberiaId}/servicios/{id}': {
       put: {
         tags: ['Servicios'],
-        summary: 'Actualiza nombre, precio y duración de un servicio (F1-12)',
+        summary: 'Actualiza nombre, precio, duración y, si viene, la descripción de un servicio (F1-12)',
+        description:
+          'Vale también sobre servicios inactivos. Si `descripcion` no viene (o viene en `null`), se conserva la ' +
+          'que tenía; a diferencia del `PUT` del perfil de la barbería, donde una descripción omitida queda vacía.',
         parameters: [parametroId('barberiaId'), parametroId('id')],
         requestBody: {
           required: true,
@@ -404,6 +444,13 @@ export const openapi = {
                 type: 'object',
                 properties: {
                   nombre: { type: 'string', minLength: 3, maxLength: 80 },
+                  descripcion: {
+                    type: 'string',
+                    maxLength: 300,
+                    nullable: true,
+                    description: 'Opcional. Si no viene, se conserva la descripción actual.',
+                    example: 'Tijera y máquina, con lavado.',
+                  },
                   precio: { type: 'integer', minimum: 1, maximum: PRECIO_MAXIMO },
                   duracionMinutos: {
                     type: 'integer', minimum: DURACION_MINIMA_MINUTOS,
@@ -423,12 +470,41 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{barberiaId}/servicios/{id}/desactivacion': {
+      post: {
+        tags: ['Servicios'],
+        summary: 'Retira un servicio de la vitrina sin borrarlo (CAR-03)',
+        description:
+          'Sin cuerpo. Inactivo, el servicio no se muestra al público ni se puede reservar, pero sigue en el ' +
+          'catálogo de gestión (`?todos=true`) y se puede editar. Los turnos ya reservados no cambian.',
+        parameters: [parametroId('barberiaId'), parametroId('id')],
+        responses: {
+          200: { description: 'Servicio con `activo: false`', content: json('ServicioDTO') },
+          404: fallo('El servicio no existe en esta barbería'),
+          409: fallo('El servicio ya estaba inactivo'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/servicios/{id}/activacion': {
+      post: {
+        tags: ['Servicios'],
+        summary: 'Vuelve a ofrecer un servicio retirado de la vitrina (CAR-03)',
+        description: 'Sin cuerpo. El servicio vuelve tal como quedó, con lo que se haya editado mientras estuvo inactivo.',
+        parameters: [parametroId('barberiaId'), parametroId('id')],
+        responses: {
+          200: { description: 'Servicio con `activo: true`', content: json('ServicioDTO') },
+          404: fallo('El servicio no existe en esta barbería'),
+          409: fallo('El servicio ya estaba activo'),
+        },
+      },
+    },
   },
   components: {
     schemas: {
       BarberiaDTO: barberia,
       RegistroBarberiaDTO: registroBarberia,
       ActualizacionPerfilBarberiaDTO: actualizacionPerfilBarberia,
+      SuspensionBarberiaDTO: suspensionBarberia,
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
       ConfiguracionHorarioDTO: configuracionHorario,

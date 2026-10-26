@@ -6,7 +6,7 @@
 
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
-import type { Servicio, ServicioNuevo } from '../modelo/Servicio'
+import type { CambiosServicio, Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
 /**
@@ -119,6 +119,7 @@ export interface HorarioAtencionDAO {
  */
 export interface ServicioDAO {
   guardar(servicio: ServicioNuevo): Promise<Servicio>
+<<<<<<< HEAD
   porNombre(barberiaId: string, nombre: string): Promise<Servicio | null>
   activosDe(barberiaId: string): Promise<Servicio[]>
   cambiarEstado(id: string, activo: boolean): Promise<Servicio>
@@ -128,6 +129,38 @@ export interface ServicioDAO {
     barberiaId: string,
     cambios: Pick<Servicio, 'nombre' | 'precio' | 'duracionMinutos'>,
   ): Promise<Servicio | null>
+=======
+
+  /**
+   * Busca un servicio dentro de una barbería. Si el servicio existe pero es de otra barbería, no
+   * lo encuentra: el aislamiento multiempresa (RES-02) se aplica en la propia consulta.
+   *
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param id Identificador del servicio.
+   * @returns El servicio, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  porId(barberiaId: string, id: string): Promise<Servicio | null>
+
+  /**
+   * Activa o desactiva un servicio. Un servicio se desactiva, nunca se borra (CAR-03). Si la
+   * transición está permitida lo decide el caso de uso, no el DAO.
+   *
+   * @param id Identificador de un servicio que ya existe (el caso de uso lo comprueba antes).
+   * @param activo `true` para volver a ofrecerlo; `false` para retirarlo de la vitrina.
+   * @returns El servicio con el estado nuevo.
+   */
+  cambiarEstado(id: string, activo: boolean): Promise<Servicio>
+
+  /**
+   * Actualiza los campos editables, solo si el servicio pertenece a la barbería indicada (RES-02).
+   *
+   * @param id Identificador del servicio.
+   * @param barberiaId Barbería dueña del catálogo.
+   * @param cambios Nombre, precio y duración; la descripción solo si no es `null` (D-05).
+   * @returns El servicio actualizado, o `null` si esa barbería no tiene un servicio con ese id.
+   */
+  actualizar(id: string, barberiaId: string, cambios: CambiosServicio): Promise<Servicio | null>
+>>>>>>> develop
 
   deBarberia(barberiaId: string): Promise<Servicio[]>
 
