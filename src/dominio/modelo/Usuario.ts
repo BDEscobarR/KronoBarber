@@ -72,6 +72,19 @@ export function perteneceABarberia(rol: RolUsuario): boolean {
 }
 
 /**
+ * Regla del aislamiento multiempresa (RES-02) aplicada al personal: ¿este usuario es barbero de esta
+ * barbería? No mira si está activo: un barbero desvinculado sigue siendo de su barbería en el
+ * historial (D-17), y qué puede hacerse con él lo decide cada caso de uso.
+ *
+ * @param usuario Usuario a consultar.
+ * @param barberiaId Barbería tomada de la URL.
+ * @returns `true` si el usuario tiene rol BARBERO y pertenece a esa barbería.
+ */
+export function esBarberoDe(usuario: Usuario, barberiaId: string): boolean {
+  return usuario.rol === 'BARBERO' && usuario.barberiaId === barberiaId
+}
+
+/**
  * Única puerta de salida de un usuario hacia el exterior: todo lo que responde la API pasa por
  * aquí, así que el hash de la clave no puede filtrarse por descuido.
  *

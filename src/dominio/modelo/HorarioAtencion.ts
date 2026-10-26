@@ -25,6 +25,14 @@ export interface Franja {
 }
 
 /**
+ * Franja semanal recurrente: un día de la semana y su intervalo. Es la forma en que se configuran el
+ * horario de atención (CAR-05) y la jornada del barbero (CAR-06).
+ */
+export interface FranjaSemanal extends Franja {
+  diaSemana: DiaSemana
+}
+
+/**
  * Entidad del dominio: un renglón del horario de atención de **una** barbería (CAR-05), el límite
  * exterior de toda disponibilidad (regla 4, RES-07) — ninguna `Jornada` de barbero podrá excederlo.
  *
@@ -109,4 +117,23 @@ export function esFechaValida(valor: unknown): valor is string {
  */
 export function seSolapan(a: Franja, b: Franja): boolean {
   return a.inicio < b.fin && b.inicio < a.fin
+}
+
+/**
+ * Regla 4 (RES-07): ¿cabe una franja dentro de las franjas de un día? Antes de comparar se unen las
+ * franjas contiguas o solapadas: si una termina cuando empieza la otra, la barbería no cierra entre
+ * las dos. Con un cierre real de por medio (jornada partida), una franja que lo cruce no cabe.
+ *
+ * @param franja Franja que debe quedar dentro.
+ * @param franjas Franjas del mismo día, en cualquier orden. Sin franjas, no cabe nada.
+ * @returns `true` si `franja` empieza y termina dentro de un mismo tramo continuo de `franjas`.
+ */
+export function estaContenida(franja: Franja, franjas: Franja[]): boolean {
+  const tramos: Franja[] = []
+  for (const { inicio, fin } of [...franjas].sort((a, b) => a.inicio.localeCompare(b.inicio))) {
+    const ultimo = tramos[tramos.length - 1]
+    if (ultimo && inicio <= ultimo.fin) ultimo.fin = fin > ultimo.fin ? fin : ultimo.fin
+    else tramos.push({ inicio, fin })
+  }
+  return tramos.some((tramo) => tramo.inicio <= franja.inicio && franja.fin <= tramo.fin)
 }

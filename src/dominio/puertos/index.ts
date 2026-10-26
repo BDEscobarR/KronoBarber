@@ -6,6 +6,7 @@
 
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
+import type { Jornada, JornadaNueva } from '../modelo/Jornada'
 import type { CambiosServicio, Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { RolUsuario, Usuario, UsuarioNuevo } from '../modelo/Usuario'
 
@@ -109,6 +110,33 @@ export interface HorarioAtencionDAO {
    * @returns Los renglones guardados, con los ids que les asignó la base de datos.
    */
   reemplazar(barberiaId: string, renglones: HorarioAtencionNuevo[]): Promise<HorarioAtencion[]>
+}
+
+/**
+ * Acceso a datos de las jornadas de los barberos. Lo declara el dominio y lo implementa la
+ * infraestructura (`JornadaDAOPrisma`); las pruebas usan un doble en memoria.
+ *
+ * Filtra por barbero, no por barbería: quien lo usa comprueba antes que el barbero sea de la barbería
+ * de la URL (RES-02, `esBarberoDe`).
+ */
+export interface JornadaDAO {
+  /**
+   * Jornada completa de un barbero.
+   *
+   * @param barberoId Barbero dueño de la jornada.
+   * @returns Sus franjas, en cualquier orden; una lista vacía si todavía no tiene jornada.
+   */
+  deBarbero(barberoId: string): Promise<Jornada[]>
+
+  /**
+   * Reemplaza la jornada completa de un barbero en una sola operación atómica: borra sus franjas y
+   * guarda las nuevas. Si algo falla, la jornada anterior queda intacta.
+   *
+   * @param barberoId Barbero dueño de la jornada.
+   * @param franjas Franjas nuevas, todas de ese barbero.
+   * @returns Las franjas guardadas, con los ids que les asignó la base de datos.
+   */
+  reemplazar(barberoId: string, franjas: JornadaNueva[]): Promise<Jornada[]>
 }
 
 /**
