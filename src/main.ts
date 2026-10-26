@@ -16,15 +16,22 @@ import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { DesactivarServicio } from './aplicacion/casos-uso/DesactivarServicio'
 import { ActivarServicio } from './aplicacion/casos-uso/ActivarServicio'
+import { RegistrarAusencia } from './aplicacion/casos-uso/RegistrarAusencia'
+
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
 import { HorarioAtencionDAOPrisma } from './infraestructura/persistencia/HorarioAtencionDAOPrisma'
+import { AusenciaDAOPrisma } from './infraestructura/persistencia/AusenciaDAOPrisma'
+import { UsuarioDAOPrisma } from './infraestructura/persistencia/UsuarioDAOPrisma'
+
 import { crearServidor } from './infraestructura/http/servidor'
 
 const barberias = new BarberiaDAOPrisma(prisma)
 const servicios = new ServicioDAOPrisma(prisma)
 const horarios = new HorarioAtencionDAOPrisma(prisma)
+const ausencias = new AusenciaDAOPrisma(prisma)
+const usuarios = new UsuarioDAOPrisma(prisma)
 
 const app = crearServidor({
   barberias,
@@ -39,6 +46,7 @@ const app = crearServidor({
   actualizarServicio: new ActualizarServicio(servicios),
   desactivarServicio: new DesactivarServicio(servicios),
   activarServicio: new ActivarServicio(servicios),
+  registrarAusencia: new RegistrarAusencia(ausencias, usuarios),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */

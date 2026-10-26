@@ -4,11 +4,21 @@
 // - `...DTO`: estructura de datos que cruza una frontera.
 // - Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
 
+import { Ausencia } from '../modelo/Ausencia';
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
 import type { CambiosServicio, Servicio, ServicioNuevo } from '../modelo/Servicio'
 import type { Usuario, UsuarioNuevo } from '../modelo/Usuario'
+// Exportar el modelo
+export * from '../modelo/Ausencia';
 
+// Añadir la interfaz del DAO
+export interface AusenciaDAO {
+  guardar(ausencia: Ausencia): Promise<Ausencia>;
+  buscarPorId(id: string): Promise<Ausencia | null>;
+  buscarPorBarbero(barberoId: string): Promise<Ausencia[]>;
+  actualizar(ausencia: Ausencia): Promise<Ausencia>;
+}
 /**
  * Acceso a datos de las barberías. Lo declara el dominio y lo implementa la infraestructura
  * (`BarberiaDAOPrisma`); las pruebas usan un doble en memoria.
