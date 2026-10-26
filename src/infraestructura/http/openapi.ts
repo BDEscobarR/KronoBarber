@@ -312,6 +312,19 @@ export const openapi = {
       },
     },
     '/barberias/{id}/horario': {
+      get: {
+        tags: ['Barberías'],
+        summary: 'Horario de atención de una barbería habilitada (CAR-05, D-06)',
+        description:
+          'Público, como la vitrina de servicios: solo se ve el de una barbería habilitada (RES-11). Responde con ' +
+          'la misma forma que el `PUT`: franjas de lunes a domingo y por hora, y cierres por fecha. Sin horario ' +
+          'configurado, las dos listas vienen vacías.',
+        parameters: [parametroId('id')],
+        responses: {
+          200: { description: 'El horario de atención', content: json('ConfiguracionHorarioDTO') },
+          404: fallo('La barbería no existe o no está habilitada'),
+        },
+      },
       put: {
         tags: ['Barberías'],
         summary: 'Configura el horario de atención: franjas semanales y cierres por fecha (CAR-05)',

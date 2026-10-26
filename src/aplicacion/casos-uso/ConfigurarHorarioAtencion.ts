@@ -32,13 +32,14 @@ export interface ConfiguracionHorarioDTO {
 }
 
 /**
- * Agrupa los renglones guardados en la forma en que los configura el administrador.
+ * Agrupa los renglones guardados en la forma en que los configura el administrador. La comparte
+ * `ConsultarHorarioAtencion`, para que el `GET` responda con la misma forma que el `PUT` (#72).
  *
  * @param barberiaId Barbería dueña del horario.
  * @param renglones Franjas semanales y cierres puntuales, en cualquier orden.
  * @returns El horario completo de la barbería.
  */
-function aConfiguracion(barberiaId: string, renglones: HorarioAtencion[]): ConfiguracionHorarioDTO {
+export function aConfiguracion(barberiaId: string, renglones: HorarioAtencion[]): ConfiguracionHorarioDTO {
   const franjas: FranjaSemanal[] = []
   const cierres: string[] = []
   for (const { diaSemana, fecha, franja } of renglones) {

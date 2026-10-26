@@ -4,8 +4,10 @@ import {
   HorarioInvalido,
   type FranjaSemanal,
 } from '../../src/aplicacion/casos-uso/ConfigurarHorarioAtencion'
-import { BarberiaNoEncontrada } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
+import { ConsultarHorarioAtencion } from '../../src/aplicacion/casos-uso/ConsultarHorarioAtencion'
+import { BarberiaNoEncontrada, HabilitarBarberia } from '../../src/aplicacion/casos-uso/HabilitarBarberia'
 import { RegistrarBarberia, type RegistroBarberiaDTO } from '../../src/aplicacion/casos-uso/RegistrarBarberia'
+import { SuspenderBarberia } from '../../src/aplicacion/casos-uso/SuspenderBarberia'
 import {
   esDiaSemana,
   esFechaValida,
@@ -227,5 +229,86 @@ describe('ConfigurarHorarioAtencion', () => {
     await expect(configurar.ejecutar({ barberiaId: 'inexistente', franjas: [], cierres: [] })).rejects.toBeInstanceOf(
       BarberiaNoEncontrada,
     )
+  })
+})
+
+describe('ConsultarHorarioAtencion', () => {
+  const EL_CLASICO: RegistroBarberiaDTO = {
+    nombre: 'Barbería El Clásico',
+    descripcion: '',
+    direccion: 'Calle 65 # 23-10',
+    ciudad: 'Manizales',
+    telefono: '6068871234',
+    correo: 'consulta@clasico.co',
+  }
+
+  /** El Clásico queda registrada, pendiente de verificación y sin horario. */
+  async function armar() {
+    const barberias = new BarberiaDAOEnMemoria()
+    const horarios = new HorarioAtencionDAOEnMemoria()
+    const registrar = new RegistrarBarberia(barberias)
+    const { id: barberiaId } = await registrar.ejecutar(EL_CLASICO)
+    return {
+      barberiaId,
+      registrar,
+      habilitar: new HabilitarBarberia(barberias),
+      suspender: new SuspenderBarberia(barberias),
+      configurar: new ConfigurarHorarioAtencion(barberias, horarios),
+      consultar: new ConsultarHorarioAtencion(barberias, horarios),
+    }
+  }
+
+  const lunes = (franja: Franja): FranjaSemanal => ({ diaSemana: 'LUNES', ...franja })
+  const MARTES: FranjaSemanal = { diaSemana: 'MARTES', inicio: '09:00', fin: '12:00' }
+
+  it('devuelve el horario de una barbería habilitada con la forma del PUT, por día, hora y fecha', async () => {
+    const { barberiaId, habilitar, configurar, consultar } = await armar()
+    await configurar.ejecutar({
+      barberiaId,
+      franjas: [MARTES, lunes(TARDE), lunes(MANANA)],
+      cierres: ['2026-12-31', '2026-12-25'],
+    })
+    await habilitar.ejecutar(barberiaId)
+
+    const horario = await consultar.ejecutar(barberiaId)
+
+    expect(horario).toEqual({
+      barberiaId,
+      franjas: [lunes(MANANA), lunes(TARDE), MARTES],
+      cierres: ['2026-12-25', '2026-12-31'],
+    })
+  })
+
+  it('una barbería habilitada sin horario responde listas vacías, no un 404', async () => {
+    const { barberiaId, habilitar, consultar } = await armar()
+    await habilitar.ejecutar(barberiaId)
+
+    expect(await consultar.ejecutar(barberiaId)).toEqual({ barberiaId, franjas: [], cierres: [] })
+  })
+
+  it('no muestra el horario de una barbería pendiente ni de una suspendida (RES-11)', async () => {
+    const { barberiaId, habilitar, suspender, configurar, consultar } = await armar()
+    await configurar.ejecutar({ barberiaId, franjas: [lunes(MANANA)], cierres: [] })
+
+    await expect(consultar.ejecutar(barberiaId)).rejects.toBeInstanceOf(BarberiaNoEncontrada)
+    await habilitar.ejecutar(barberiaId)
+    await suspender.ejecutar({ id: barberiaId, motivo: 'Incumple la política de precios' })
+    await expect(consultar.ejecutar(barberiaId)).rejects.toBeInstanceOf(BarberiaNoEncontrada)
+  })
+
+  it('no mezcla el horario de otra barbería (RES-02)', async () => {
+    const { barberiaId, registrar, habilitar, configurar, consultar } = await armar()
+    const { id: otraId } = await registrar.ejecutar({ ...EL_CLASICO, correo: 'consulta@moderno.co' })
+    await configurar.ejecutar({ barberiaId, franjas: [lunes(MANANA)], cierres: [] })
+    await configurar.ejecutar({ barberiaId: otraId, franjas: [MARTES], cierres: ['2026-12-25'] })
+    await habilitar.ejecutar(barberiaId)
+
+    expect(await consultar.ejecutar(barberiaId)).toEqual({ barberiaId, franjas: [lunes(MANANA)], cierres: [] })
+  })
+
+  it('falla si la barbería no existe, con el mismo error que reconoce la ruta', async () => {
+    const { consultar } = await armar()
+
+    await expect(consultar.ejecutar('inexistente')).rejects.toBeInstanceOf(BarberiaNoEncontrada)
   })
 })
