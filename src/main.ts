@@ -16,19 +16,26 @@ import { CrearServicio } from './aplicacion/casos-uso/CrearServicio'
 import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { DesactivarServicio } from './aplicacion/casos-uso/DesactivarServicio'
 import { ActivarServicio } from './aplicacion/casos-uso/ActivarServicio'
+import { DefinirJornada } from './aplicacion/casos-uso/DefinirJornada'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
 import { HorarioAtencionDAOPrisma } from './infraestructura/persistencia/HorarioAtencionDAOPrisma'
+import { UsuarioDAOPrisma } from './infraestructura/persistencia/UsuarioDAOPrisma'
+import { JornadaDAOPrisma } from './infraestructura/persistencia/JornadaDAOPrisma'
 import { crearServidor } from './infraestructura/http/servidor'
 
 const barberias = new BarberiaDAOPrisma(prisma)
 const servicios = new ServicioDAOPrisma(prisma)
 const horarios = new HorarioAtencionDAOPrisma(prisma)
+const usuarios = new UsuarioDAOPrisma(prisma)
+const jornadas = new JornadaDAOPrisma(prisma)
 
 const app = crearServidor({
   barberias,
   servicios,
+  usuarios,
+  jornadas,
   registrarBarberia: new RegistrarBarberia(barberias),
   actualizarPerfilBarberia: new ActualizarPerfilBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
@@ -39,6 +46,7 @@ const app = crearServidor({
   actualizarServicio: new ActualizarServicio(servicios),
   desactivarServicio: new DesactivarServicio(servicios),
   activarServicio: new ActivarServicio(servicios),
+  definirJornada: new DefinirJornada(barberias, usuarios, horarios, jornadas),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */
