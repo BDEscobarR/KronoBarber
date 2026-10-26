@@ -100,6 +100,15 @@ export interface HorarioAtencionDAO {
   reemplazar(horario: HorarioAtencion): Promise<HorarioAtencion>
 }
 
+/** Servicio de infraestructura para convertir claves en hashes seguros. */
+export interface ServicioClaves {
+  /**
+   * Calcula un hash no reversible de la clave. La implementación decide el algoritmo y su costo.
+   * @param clave Clave en texto claro, solo durante el registro.
+   */
+  hash(clave: string): Promise<string>
+}
+
 /**
  * Acceso a datos de las cuentas de usuario. Lo declara el dominio y lo implementa la
  * infraestructura (`UsuarioDAOPrisma`); las pruebas usan un doble en memoria.
