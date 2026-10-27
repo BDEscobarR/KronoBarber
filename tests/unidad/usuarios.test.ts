@@ -7,6 +7,10 @@ import {
   ROLES_USUARIO,
   type Usuario,
 } from '../../src/dominio/modelo/Usuario'
+import { CredencialesInvalidas, IniciarSesion } from '../../src/aplicacion/casos-uso/IniciarSesion'
+import { UsuarioDAOEnMemoria } from '../dobles/UsuarioDAOEnMemoria'
+import { ServicioClavesEnMemoria } from '../dobles/ServicioClavesEnMemoria'
+import { ServicioTokensEnMemoria } from '../dobles/ServicioTokensEnMemoria'
 
 const ADMINISTRADOR: Usuario = {
   id: '1',
@@ -64,5 +68,49 @@ describe('aUsuarioDTO', () => {
       barberiaId: 'barberia-1',
       activo: true,
     })
+  })
+})
+
+describe('IniciarSesion', () => {
+  const { id: _id, ...administradorNuevo } = ADMINISTRADOR
+
+  function armar() {
+    const usuarios = new UsuarioDAOEnMemoria()
+    const tokens = new ServicioTokensEnMemoria()
+    const iniciar = new IniciarSesion(usuarios, new ServicioClavesEnMemoria(), tokens)
+    return { usuarios, tokens, iniciar }
+  }
+
+  it('emite un token y devuelve el DTO sin el hash para credenciales válidas', async () => {
+    const { usuarios, tokens, iniciar } = armar()
+    await usuarios.guardar({ ...administradorNuevo, claveHash: 'hash:claveSegura123' })
+
+    const sesion = await iniciar.ejecutar({ correo: ' LAURA@ELCLASICO.CO ', clave: 'claveSegura123' })
+
+    expect(sesion.token).toBe('token-1')
+    expect(sesion.usuario).toMatchObject({ correo: 'laura@elclasico.co', rol: 'ADMINISTRADOR' })
+    expect(sesion.usuario).not.toHaveProperty('claveHash')
+    expect(tokens.verificar(sesion.token)).toEqual({ usuarioId: '1', rol: 'ADMINISTRADOR', barberiaId: 'barberia-1' })
+  })
+
+  it('usa el mismo error para correo inexistente, cuenta inactiva y clave incorrecta', async () => {
+    const { usuarios, iniciar } = armar()
+    await usuarios.guardar({ ...administradorNuevo, claveHash: 'hash:claveSegura123' })
+    await usuarios.guardar({
+      ...administradorNuevo,
+      correo: 'inactivo@ejemplo.co',
+      activo: false,
+      claveHash: 'hash:claveSegura123',
+    })
+
+    const intentos = [
+      iniciar.ejecutar({ correo: 'noexiste@ejemplo.co', clave: 'claveSegura123' }),
+      iniciar.ejecutar({ correo: 'laura@elclasico.co', clave: 'incorrecta' }),
+      iniciar.ejecutar({ correo: 'inactivo@ejemplo.co', clave: 'claveSegura123' }),
+    ]
+    const resultados = await Promise.all(intentos.map((intento) => intento.catch((error: unknown) => error)))
+
+    expect(resultados.every((error) => error instanceof CredencialesInvalidas)).toBe(true)
+    expect(new Set(resultados.map((error) => (error as Error).message)).size).toBe(1)
   })
 })
