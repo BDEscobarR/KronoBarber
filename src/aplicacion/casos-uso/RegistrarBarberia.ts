@@ -1,13 +1,9 @@
 import { normalizarTelefono, type Barberia } from '../../dominio/modelo/Barberia'
 import type { BarberiaDAO } from '../../dominio/puertos'
+import { CorreoYaRegistrado } from './CorreoYaRegistrado'
 
-/** Error de negocio: ya hay una barbería registrada con ese correo. La ruta HTTP lo traduce a 409. */
-export class CorreoDeBarberiaYaRegistrado extends Error {
-  /** @param correo Correo repetido, ya normalizado. */
-  constructor(correo: string) {
-    super(`Ya existe una barbería registrada con el correo ${correo}`)
-  }
-}
+/** Nombre histórico conservado para las rutas existentes; comparte el mismo constructor. */
+export { CorreoYaRegistrado as CorreoDeBarberiaYaRegistrado }
 
 /** Datos de entrada del registro de una barbería, ya validados en la frontera HTTP. */
 export interface RegistroBarberiaDTO {
@@ -35,11 +31,11 @@ export class RegistrarBarberia {
    *
    * @param datos Datos del registro, ya validados en la frontera HTTP.
    * @returns La barbería registrada, con su id y en estado PENDIENTE_VERIFICACION.
-   * @throws {CorreoDeBarberiaYaRegistrado} Si otra barbería ya usa ese correo, sin distinguir mayúsculas.
+   * @throws {CorreoYaRegistrado} Si otra barbería ya usa ese correo, sin distinguir mayúsculas.
    */
   async ejecutar(datos: RegistroBarberiaDTO): Promise<Barberia> {
     const correo = datos.correo.trim().toLowerCase()
-    if (await this.barberias.porCorreo(correo)) throw new CorreoDeBarberiaYaRegistrado(correo)
+    if (await this.barberias.porCorreo(correo)) throw new CorreoYaRegistrado(correo)
 
     // Nace pendiente: nadie puede registrarla habilitada, eso lo decide el operador (CAR-02).
     return this.barberias.guardar({
