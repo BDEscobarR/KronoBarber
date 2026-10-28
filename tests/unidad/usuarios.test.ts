@@ -4,6 +4,7 @@ import {
   esBarberoDe,
   esRolUsuario,
   perteneceABarberia,
+  puedePrestarServicio,
   ROLES_USUARIO,
   type Usuario,
 } from '../../src/dominio/modelo/Usuario'
@@ -52,6 +53,26 @@ describe('esBarberoDe', () => {
 
   it('un barbero desvinculado sigue siendo de su barbería (D-17)', () => {
     expect(esBarberoDe({ ...BARBERO, activo: false }, 'barberia-1')).toBe(true)
+  })
+})
+
+describe('puedePrestarServicio', () => {
+  const BARBERO: Usuario = { ...ADMINISTRADOR, id: '2', correo: 'andres@elclasico.co', rol: 'BARBERO' }
+
+  it('permite prestar servicio si es BARBERO, está activo y pertenece a la barbería', () => {
+    expect(puedePrestarServicio(BARBERO, 'barberia-1')).toBe(true)
+  })
+
+  it('rechaza si el barbero está inactivo', () => {
+    expect(puedePrestarServicio({ ...BARBERO, activo: false }, 'barberia-1')).toBe(false)
+  })
+
+  it('rechaza si pertenece a otra barbería', () => {
+    expect(puedePrestarServicio(BARBERO, 'barberia-2')).toBe(false)
+  })
+
+  it('rechaza si el usuario no tiene rol BARBERO', () => {
+    expect(puedePrestarServicio(ADMINISTRADOR, 'barberia-1')).toBe(false)
   })
 })
 

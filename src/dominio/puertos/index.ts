@@ -1,8 +1,8 @@
 // Puertos: lo que el dominio necesita del exterior, en su propio vocabulario.
 //
-// - `...DAO`: acceso a datos, quien sepa guardar y recuperar entidades.
-// - `...DTO`: estructura de datos que cruza una frontera.
-// - Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
+// `...DAO`: acceso a datos, quien sepa guardar y recuperar entidades.
+// `...DTO`: estructura de datos que cruza una frontera.
+// Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
 
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
@@ -210,6 +210,22 @@ export interface ServicioDAO {
    * @returns Todos los servicios de la barbería; una lista vacía si no tiene ninguno.
    */
   deBarberia(barberiaId: string): Promise<Servicio[]>
+
+  /**
+   * Servicios asignados a un barbero específico ([F3]/[#17]).
+   *
+   * @param barberoId Identificador del usuario con rol BARBERO.
+   * @returns Lista de servicios que el barbero puede prestar; lista vacía si no tiene ninguno.
+   */
+  deBarbero(barberoId: string): Promise<Servicio[]>
+
+  /**
+   * Reemplaza la lista de servicios asignados a un barbero ([F3]/[#17]).
+   *
+   * @param barberoId Identificador del usuario con rol BARBERO.
+   * @param serviciosIds Lista de IDs de los servicios a asignar.
+   */
+  asignarABarbero(barberoId: string, serviciosIds: string[]): Promise<void>
 }
 
 /**
@@ -243,6 +259,14 @@ export interface UsuarioDAO {
    * @returns El usuario, o `null` si ninguno usa ese correo.
    */
   porCorreo(correo: string): Promise<Usuario | null>
+
+  /**
+   * Lista de barberos pertenecientes a una barbería ([F3]/[#17]).
+   *
+   * @param barberiaId Identificador de la barbería.
+   * @returns Todos los usuarios con rol BARBERO de esa barbería.
+   */
+  barberosDe(barberiaId: string): Promise<Usuario[]>
 }
 
 /**

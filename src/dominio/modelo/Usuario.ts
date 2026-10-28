@@ -85,6 +85,19 @@ export function esBarberoDe(usuario: Usuario, barberiaId: string): boolean {
 }
 
 /**
+ * Regla pura del dominio para asignación de servicios ([F3]/[#17]):
+ * Un usuario puede prestar un servicio en una barbería si es BARBERO, pertenece
+ * a esa barbería y está activo (CAR-04, NC-03).
+ *
+ * @param usuario Usuario a validar.
+ * @param barberiaId ID de la barbería a la que pertenece el servicio.
+ * @returns `true` si el usuario es un barbero activo de esa barbería.
+ */
+export function puedePrestarServicio(usuario: Usuario, barberiaId: string): boolean {
+  return esBarberoDe(usuario, barberiaId) && usuario.activo
+}
+
+/**
  * Única puerta de salida de un usuario hacia el exterior: todo lo que responde la API pasa por
  * aquí, así que el hash de la clave no puede filtrarse por descuido.
  *

@@ -7,6 +7,15 @@ datasource db {
   provider = "sqlserver"
 }
 
+model BarberoServicio {
+  barberoId  String   @db.NVarChar(36)
+  servicioId String   @db.NVarChar(36)
+  usuario    Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicio   Servicio @relation(fields: [servicioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([barberoId, servicioId])
+}
+
 // SQL Server no admite `enum` en Prisma: el estado se guarda como texto y la lista
 // de valores válidos vive en el dominio (ESTADOS_BARBERIA). El DAO la comprueba al leer.
 model Barberia {
@@ -39,7 +48,7 @@ model Servicio {
   // SQL Server no admite `Restrict`; `NoAction` produce el mismo efecto: una barbería
   // con catálogo no se puede borrar. Las barberías se suspenden, no se borran.
   barberia        Barberia @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
+  barberosAsignados BarberoServicio[]
   @@unique([barberiaId, nombre])
 }
 
@@ -58,6 +67,7 @@ model Usuario {
   // Una barbería con personal no se puede borrar, igual que una con catálogo.
   barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   jornadas   Jornada[]
+  serviciosAsignados BarberoServicio[]
 }
 
 // Horario de atención (CAR-05): límite exterior de toda disponibilidad (RES-07). SQL Server no
