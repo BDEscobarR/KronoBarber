@@ -11,6 +11,10 @@ import { CredencialesInvalidas, IniciarSesion } from '../../src/aplicacion/casos
 import { UsuarioDAOEnMemoria } from '../dobles/UsuarioDAOEnMemoria'
 import { ServicioClavesEnMemoria } from '../dobles/ServicioClavesEnMemoria'
 import { ServicioTokensEnMemoria } from '../dobles/ServicioTokensEnMemoria'
+import { BarberiaRequeridaParaRol, ClaveInvalida, RegistrarUsuario, RolNoPerteneceABarberia } from '../../src/aplicacion/casos-uso/RegistrarUsuario'
+import { CorreoYaRegistrado } from '../../src/aplicacion/casos-uso/CorreoYaRegistrado'
+import { UsuarioDAOEnMemoria } from '../dobles/UsuarioDAOEnMemoria'
+import { ServicioClavesEnMemoria } from '../dobles/ServicioClavesEnMemoria'
 
 const ADMINISTRADOR: Usuario = {
   id: '1',
@@ -112,5 +116,54 @@ describe('IniciarSesion', () => {
 
     expect(resultados.every((error) => error instanceof CredencialesInvalidas)).toBe(true)
     expect(new Set(resultados.map((error) => (error as Error).message)).size).toBe(1)
+describe('RegistrarUsuario', () => {
+  function armar() {
+    const usuarios = new UsuarioDAOEnMemoria()
+    const registrar = new RegistrarUsuario(usuarios, new ServicioClavesEnMemoria())
+    return { usuarios, registrar }
+  }
+
+  const datos = {
+    nombre: '  Ana Pérez ',
+    correo: ' ANA@Ejemplo.CO ',
+    clave: 'claveSegura123',
+  }
+
+  it('registra cliente con correo normalizado, clave cifrada y DTO sin credenciales', async () => {
+    const { usuarios, registrar } = armar()
+
+    const respuesta = await registrar.ejecutar({ ...datos, barberiaId: null }, 'CLIENTE')
+
+    expect(respuesta).toMatchObject({ nombre: 'Ana Pérez', correo: 'ana@ejemplo.co', rol: 'CLIENTE', barberiaId: null, activo: true })
+    expect(respuesta).not.toHaveProperty('claveHash')
+    expect(await usuarios.porCorreo('ana@ejemplo.co')).toMatchObject({ claveHash: `hash:${datos.clave}` })
+  })
+
+  it('exige barbería para los roles de barbería y la rechaza para los demás', async () => {
+    const { registrar } = armar()
+    await expect(registrar.ejecutar(datos, 'BARBERO')).rejects.toBeInstanceOf(BarberiaRequeridaParaRol)
+    await expect(registrar.ejecutar({ ...datos, barberiaId: 'barberia-1' }, 'OPERADOR')).rejects.toBeInstanceOf(
+      RolNoPerteneceABarberia,
+    )
+    await expect(registrar.ejecutar({ ...datos, barberiaId: 'barberia-1' }, 'ADMINISTRADOR')).resolves.toMatchObject({
+      rol: 'ADMINISTRADOR',
+      barberiaId: 'barberia-1',
+    })
+  })
+
+  it('rechaza correos repetidos ignorando mayúsculas y espacios', async () => {
+    const { registrar } = armar()
+    await registrar.ejecutar({ ...datos, barberiaId: null }, 'CLIENTE')
+    await expect(registrar.ejecutar({ ...datos, correo: 'ana@ejemplo.co', barberiaId: null }, 'OPERADOR')).rejects.toBeInstanceOf(
+      CorreoYaRegistrado,
+    )
+  })
+
+  it('acepta claves de 10 y 64 caracteres y rechaza las que quedan fuera', async () => {
+    const { registrar } = armar()
+    await expect(registrar.ejecutar({ ...datos, clave: '123456789', barberiaId: null }, 'CLIENTE')).rejects.toBeInstanceOf(ClaveInvalida)
+    await expect(registrar.ejecutar({ ...datos, clave: 'a'.repeat(65), barberiaId: null }, 'CLIENTE')).rejects.toBeInstanceOf(ClaveInvalida)
+    await expect(registrar.ejecutar({ ...datos, correo: 'min@ejemplo.co', clave: '1234567890', barberiaId: null }, 'CLIENTE')).resolves.toBeDefined()
+    await expect(registrar.ejecutar({ ...datos, correo: 'max@ejemplo.co', clave: 'a'.repeat(64), barberiaId: null }, 'CLIENTE')).resolves.toBeDefined()
   })
 })
