@@ -6,10 +6,18 @@ import { describe, expect, it } from 'vitest'
 // dominio; nunca al revés.
 // Se escribe como prueba, y no como un `grep` en package.json, para que corra igual
 // en Windows, Mac y CI (npm ejecuta los scripts con cmd.exe en Windows).
+// bcryptjs y jsonwebtoken solo los conocen ClavesBcrypt y TokensJwt (CAR-17): adentro se usan los
+// puertos ServicioClaves y ServicioTokens.
 
 const REGLAS = [
-  { capa: 'src/dominio', prohibido: /from\s+['"]([^'"]*(infraestructura|aplicacion)|express|@prisma\/)/ },
-  { capa: 'src/aplicacion', prohibido: /from\s+['"]([^'"]*infraestructura|express|@prisma\/)/ },
+  {
+    capa: 'src/dominio',
+    prohibido: /from\s+['"]([^'"]*(infraestructura|aplicacion)|express|@prisma\/|bcryptjs|jsonwebtoken)/,
+  },
+  {
+    capa: 'src/aplicacion',
+    prohibido: /from\s+['"]([^'"]*infraestructura|express|@prisma\/|bcryptjs|jsonwebtoken)/,
+  },
 ]
 
 function archivosDe(carpeta: string): string[] {
