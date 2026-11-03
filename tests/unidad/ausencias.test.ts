@@ -8,6 +8,7 @@ import { RegistrarBarberia, type RegistroBarberiaDTO } from '../../src/aplicacio
 import { SuspenderBarberia } from '../../src/aplicacion/casos-uso/SuspenderBarberia'
 import { esTipoAusencia, terminaDespuesDeEmpezar, TIPOS_AUSENCIA } from '../../src/dominio/modelo/Ausencia'
 import type { UsuarioNuevo } from '../../src/dominio/modelo/Usuario'
+import { enBogota, validarAusencia } from '../../src/infraestructura/http/rutas/barberos'
 import { AusenciaDAOEnMemoria } from '../dobles/AusenciaDAOEnMemoria'
 import { BarberiaDAOEnMemoria } from '../dobles/BarberiaDAOEnMemoria'
 import { UsuarioDAOEnMemoria } from '../dobles/UsuarioDAOEnMemoria'
@@ -28,6 +29,44 @@ describe('reglas de la ausencia', () => {
     expect(terminaDespuesDeEmpezar({ desde: DESDE, hasta: HASTA })).toBe(true)
     expect(terminaDespuesDeEmpezar({ desde: DESDE, hasta: DESDE })).toBe(false)
     expect(terminaDespuesDeEmpezar({ desde: HASTA, hasta: DESDE })).toBe(false)
+  })
+})
+
+describe('frontera HTTP de las ausencias', () => {
+  /**
+   * Valida un cuerpo con esos instantes, como lo hacen el registro y la modificación.
+   *
+   * @param desde Instante de inicio, tal como llega en el cuerpo.
+   * @param hasta Instante de fin; por defecto, uno válido.
+   */
+  const validar = (desde: unknown, hasta: unknown = '2026-11-10T21:00:00Z') =>
+    validarAusencia('barberia-1', 'barbero-1', { tipo: 'PERMISO', desde, hasta })
+
+  it('acepta fracciones de segundo, como serializa JSON una fecha (corrección de #20)', () => {
+    expect(validar('2026-11-10T19:00:00.000Z')).toMatchObject({ desde: new Date('2026-11-10T19:00:00.000Z') })
+    expect(validar('2026-11-10T14:00:00.5-05:00')).toMatchObject({ desde: new Date('2026-11-10T19:00:00.500Z') })
+    expect(validar(DESDE.toISOString(), HASTA.toISOString())).toEqual({
+      barberiaId: 'barberia-1',
+      barberoId: 'barbero-1',
+      tipo: 'PERMISO',
+      desde: DESDE,
+      hasta: HASTA,
+    })
+  })
+
+  it('acepta el instante con o sin segundos, siempre con la zona', () => {
+    expect(validar('2026-11-10T14:00:00-05:00')).toMatchObject({ desde: DESDE })
+    expect(validar('2026-11-10T14:00-05:00')).toMatchObject({ desde: DESDE })
+  })
+
+  it('sigue rechazando un instante sin zona, una fecha que no existe y lo que no es un instante', () => {
+    for (const desde of ['2026-11-10T14:00:00', '2026-11-10T14:00:00.000', '2026-02-30T14:00:00-05:00', '2026-11-10T25:00:00Z', '2026-11-10T19:00.5Z', 1762801200000, null])
+      expect(validar(desde)).toMatch(/^desde debe ser una fecha y hora ISO 8601 con zona/)
+  })
+
+  it('presenta los instantes en la hora de Bogotá (-05:00), sin la fracción de segundo (regla 10)', () => {
+    expect(enBogota(new Date('2026-11-10T19:00:00.500Z'))).toBe('2026-11-10T14:00:00-05:00')
+    expect(enBogota(new Date('2026-11-11T03:30:00Z'))).toBe('2026-11-10T22:30:00-05:00')
   })
 })
 

@@ -42,9 +42,11 @@ function validarJornada(barberiaId: string, barberoId: string, cuerpo: unknown):
 
 /**
  * Instante ISO 8601 con la zona explícita: `Z` o un desfase `±HH:MM`. Sin zona, `2026-11-10T08:00`
- * sería ambiguo entre la hora de Bogotá y la UTC, así que se rechaza.
+ * sería ambiguo entre la hora de Bogotá y la UTC, así que se rechaza. Los segundos son opcionales y
+ * pueden traer fracción, como admite `format: date-time` (RFC 3339): `2026-11-10T19:00:00.000Z` es
+ * como JSON serializa una fecha (corrección de #20).
  */
-const INSTANTE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::[0-5]\d)?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/
+const INSTANTE = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:0\d|1[0-4]):[0-5]\d)$/
 
 /**
  * Lee un instante que llega de afuera. La fecha y la hora se comprueban con las guardas del dominio
@@ -70,7 +72,7 @@ function leerInstante(valor: unknown, campo: string): Date | string {
  * @param cuerpo Cuerpo de la petición, sin validar.
  * @returns Los datos listos para `RegistrarAusencia` o `ModificarAusencia`, o el mensaje del 400.
  */
-function validarAusencia(barberiaId: string, barberoId: string, cuerpo: unknown): RegistroAusenciaDTO | string {
+export function validarAusencia(barberiaId: string, barberoId: string, cuerpo: unknown): RegistroAusenciaDTO | string {
   const { tipo, desde, hasta } = (cuerpo ?? {}) as Record<string, unknown>
   if (!esTipoAusencia(tipo)) return `tipo inválido (${TIPOS_AUSENCIA.join(', ')})`
   const inicio = leerInstante(desde, 'desde')
@@ -88,9 +90,9 @@ const DESFASE_BOGOTA_MS = -5 * 60 * 60 * 1000
  * conversión ocurre aquí, en el borde HTTP: el dominio y la base de datos trabajan en UTC (§9).
  *
  * @param instante Instante en UTC.
- * @returns El instante como `YYYY-MM-DDTHH:MM:SS-05:00`.
+ * @returns El instante como `YYYY-MM-DDTHH:MM:SS-05:00`; la fracción de segundo no se presenta.
  */
-function enBogota(instante: Date): string {
+export function enBogota(instante: Date): string {
   return `${new Date(instante.getTime() + DESFASE_BOGOTA_MS).toISOString().slice(0, 19)}-05:00`
 }
 
