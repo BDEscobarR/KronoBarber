@@ -17,12 +17,16 @@ export class BarberoNoEncontrado extends Error {
 
 /**
  * Error de negocio: el barbero fue desvinculado (`activo = false`, D-17) y ya no atiende, así que no se
- * le registra jornada. La ruta HTTP lo traduce a 409.
+ * le registra jornada ni se le registran, modifican o anulan ausencias (#20). La ruta HTTP lo traduce
+ * a 409.
  */
 export class BarberoDesvinculado extends Error {
-  /** @param id Identificador del barbero. */
-  constructor(id: string) {
-    super(`El barbero ${id} está desvinculado: no se le puede registrar jornada`)
+  /**
+   * @param id Identificador del barbero.
+   * @param accion Lo que se le intentó hacer, para el mensaje. Por defecto, registrarle la jornada.
+   */
+  constructor(id: string, accion = 'registrar jornada') {
+    super(`El barbero ${id} está desvinculado: no se le puede ${accion}`)
   }
 }
 

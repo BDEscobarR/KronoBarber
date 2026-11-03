@@ -139,7 +139,7 @@ La columna **Estado** refleja `develop` al 2026-10-24; los `D-` son decisiones d
 | CAR-03 | Catálogo de servicios (precio, duración, activar/desactivar) | Administrador | **Hecho**: crear, editar, catálogo de gestión y activar o desactivar |
 | CAR-04 | Gestión del personal y de los servicios que presta cada barbero | Administrador | Pendiente (Fase 3). El barbero es un `Usuario` |
 | CAR-05 | Horarios de atención del establecimiento, incluidos cierres por fecha | Administrador | **Parcial**: se configura, pero todavía no se consulta |
-| CAR-06 | Jornada y bloqueos puntuales del barbero | Barbero | **Parcial**: la jornada se registra y se consulta (#19); faltan las ausencias y los bloqueos (#20). Los registra el administrador (D-16), no el barbero como dice el Documento de Visión |
+| CAR-06 | Jornada y bloqueos puntuales del barbero | Barbero | **Hecho**: la jornada se registra y se consulta (#19), y las ausencias (días libres, permisos y bloqueos) se registran, modifican, anulan y consultan (#20). Los registra el administrador (D-16), no el barbero como dice el Documento de Visión |
 | CAR-07 | Exploración de barberías y servicios | Cliente | **Hecho**: barberías habilitadas por ciudad y vitrina de servicios activos |
 | CAR-08 | Selección explícita de barbero | Cliente | Pendiente (fases 3 y 7) |
 | CAR-09 | Calendario de disponibilidad **real** | Cliente | Pendiente (Fase 7) |
@@ -240,7 +240,7 @@ cuando una historia de usuario la necesita.
 KronoBarber/
 ├── prisma/
 │   ├── schema.prisma                  esquema de la BD (fuente de verdad del ORM)
-│   └── migrations/                    SQL generado por `prisma migrate dev` (se versiona): inicial, usuarios, horario_atencion, jornada
+│   └── migrations/                    SQL generado por `prisma migrate dev` (se versiona): inicial, usuarios, horario_atencion, jornada, barbero_servicio, ausencia
 │
 ├── src/
 │   ├── dominio/                       el negocio: no importa nada de afuera
@@ -249,9 +249,10 @@ KronoBarber/
 │   │   │   ├── Servicio.ts            entidad + reglas de precio y duración + ServicioDTO
 │   │   │   ├── Usuario.ts             entidad + RolUsuario + perteneceABarberia() + esBarberoDe() + UsuarioDTO (sin claveHash)
 │   │   │   ├── HorarioAtencion.ts     entidad + DiaSemana + Franja + FranjaSemanal + guardas de hora y fecha + seSolapan() (semilla de la regla 5) + estaContenida() (regla 4)
-│   │   │   └── Jornada.ts             entidad: franjas semanales del barbero + JornadaDTO + aJornadaDTO()
+│   │   │   ├── Jornada.ts             entidad: franjas semanales del barbero + JornadaDTO + aJornadaDTO()
+│   │   │   └── Ausencia.ts            entidad + TipoAusencia + terminaDespuesDeEmpezar() + AusenciaDTO + aAusenciaDTO()
 │   │   └── puertos/
-│   │       └── index.ts               BarberiaDAO, ServicioDAO, UsuarioDAO, HorarioAtencionDAO, JornadaDAO, ServicioClaves, ServicioTokens y CredencialDTO
+│   │       └── index.ts               BarberiaDAO, ServicioDAO, UsuarioDAO, HorarioAtencionDAO, JornadaDAO, AusenciaDAO, ServicioClaves, ServicioTokens y CredencialDTO
 │   │
 │   ├── aplicacion/                    orquestación de las reglas
 │   │   └── casos-uso/
@@ -264,7 +265,10 @@ KronoBarber/
 │   │       ├── ActualizarServicio.ts  caso de uso + ActualizacionServicioDTO + ServicioNoEncontrado
 │   │       ├── DesactivarServicio.ts  caso de uso + ServicioYaInactivo
 │   │       ├── ActivarServicio.ts     caso de uso + ServicioYaActivo
-│   │       └── DefinirJornada.ts      caso de uso + DefinicionJornadaDTO + BarberoNoEncontrado + BarberoDesvinculado + JornadaInvalida + JornadaFueraDeHorario
+│   │       ├── DefinirJornada.ts      caso de uso + DefinicionJornadaDTO + BarberoNoEncontrado + BarberoDesvinculado + JornadaInvalida + JornadaFueraDeHorario
+│   │       ├── RegistrarAusencia.ts   caso de uso + RegistroAusenciaDTO + AusenciaInvalida
+│   │       ├── ModificarAusencia.ts   caso de uso + ModificacionAusenciaDTO + AusenciaNoEncontrada + AusenciaAnulada
+│   │       └── AnularAusencia.ts      caso de uso + AnulacionAusenciaDTO
 │   │
 │   ├── infraestructura/               lo reemplazable: aquí vive la tecnología
 │   │   ├── persistencia/
@@ -274,6 +278,7 @@ KronoBarber/
 │   │   │   ├── UsuarioDAOPrisma.ts    adaptador: implementa UsuarioDAO con Prisma
 │   │   │   ├── HorarioAtencionDAOPrisma.ts  adaptador: implementa HorarioAtencionDAO con Prisma
 │   │   │   ├── JornadaDAOPrisma.ts    adaptador: implementa JornadaDAO con Prisma
+│   │   │   ├── AusenciaDAOPrisma.ts   adaptador: implementa AusenciaDAO con Prisma
 │   │   │   └── generado/              (no versionado) cliente generado por Prisma
 │   │   ├── seguridad/
 │   │   │   ├── ClavesBcrypt.ts        adaptador: implementa ServicioClaves con bcryptjs
@@ -283,13 +288,13 @@ KronoBarber/
 │   │       ├── openapi.ts             contrato OpenAPI 3.0.3 como objeto TS
 │   │       └── rutas/
 │   │           ├── barberias.ts       validación de frontera + handlers de barberías y de su horario
-│   │           ├── barberos.ts        validación de frontera + handlers del personal: la jornada
+│   │           ├── barberos.ts        validación de frontera + handlers del personal: la jornada y las ausencias, presentadas en America/Bogotá
 │   │           └── servicios.ts       validación de frontera + handlers del catálogo
 │   │
 │   └── main.ts                        raíz de composición: el único con `new`
 │
 ├── tests/
-│   ├── unidad/                        barberias, servicios, horario, jornada, usuarios y seguridad: casos de uso, reglas y adaptadores de seguridad, sin BD ni red
+│   ├── unidad/                        barberias, servicios, horario, jornada, ausencias, usuarios y seguridad: casos de uso, reglas y adaptadores de seguridad, sin BD ni red
 │   ├── dobles/                        un ...DAOEnMemoria por DAO, más ServicioClavesEnMemoria y ServicioTokensEnMemoria
 │   └── arquitectura.test.ts           verifica la regla de dependencias
 │
@@ -392,7 +397,7 @@ Diferencias con PostgreSQL que condicionan el esquema:
 
 | Tema | En SQL Server con Prisma | Cómo se resolvió |
 |---|---|---|
-| `enum` | **No soportado** | `estado` (Barberia), `rol` (Usuario) y `diaSemana` (HorarioAtencion y Jornada) son `String`. La lista válida vive en el dominio y el DAO la comprueba al leer |
+| `enum` | **No soportado** | `estado` (Barberia), `rol` (Usuario), `diaSemana` (HorarioAtencion y Jornada) y `tipo` (Ausencia) son `String`. La lista válida vive en el dominio y el DAO la comprueba al leer |
 | `onDelete: Restrict` | **No soportado** (error de validación) | `NoAction`, que produce el mismo efecto: una barbería con catálogo, personal u horario no se puede borrar |
 | Base sombra de `migrate dev` | Crearla automáticamente exige ser administrador del servidor | Se crea una vez a mano (`KronoBarber_sombra`) y `prisma.config.ts` la declara |
 | Mayúsculas | La intercalación por defecto no las distingue | "Corte clásico" y "CORTE CLÁSICO" chocan en el `@@unique([barberiaId, nombre])`, que es lo que se quiere |
@@ -426,7 +431,7 @@ GO
 ```bash
 npm install                      # el postinstall genera el cliente de Prisma
 cp .env.example .env             # en PowerShell: Copy-Item .env.example .env; luego poner la contraseña y JWT_SECRET
-npm run db:migrate               # aplica las migraciones (crea las tablas Barberia, Servicio, Usuario, HorarioAtencion y Jornada)
+npm run db:migrate               # aplica las migraciones (crea las tablas Barberia, Servicio, Usuario, HorarioAtencion, Jornada, BarberoServicio y Ausencia)
 npm run dev                      # KronoBarber escuchando en http://localhost:3000/api (documentación en /api/docs)
 ```
 
@@ -475,6 +480,10 @@ versionan siempre** y no se editan a mano. Al traer una migración de otro integ
 | `POST` | `/barberias/:barberiaId/servicios/:id/activacion` | **Sin cuerpo.** Vuelve a ofrecer el servicio y responde `200` con `ServicioDTO` en `activo: true` (CAR-03, D-04) | `404` el servicio no es de esa barbería o no existe; `409` ya estaba activo |
 | `PUT` | `/barberias/:barberiaId/barberos/:barberoId/jornada` | Recibe `JornadaDTO` (`franjas` con `diaSemana`, `inicio`, `fin` en `HH:MM`) y **reemplaza la jornada completa** del barbero; responde `200` con lo guardado, por día y hora (CAR-06). Cada franja cabe en un tramo continuo del horario de atención de ese día (RES-07). La registra el administrador (D-16), también con la barbería suspendida (D-03) | `400` formato, franja que no avanza o franjas solapadas; `404` la barbería no existe o el usuario no es barbero de ella; `409` barbero desvinculado o franja fuera del horario |
 | `GET` | `/barberias/:barberiaId/barberos/:barberoId/jornada` | La jornada registrada del barbero, con la misma forma que el `PUT`; sin franjas si todavía no tiene (CAR-06) | `404` el usuario no es barbero de esa barbería |
+| `POST` | `/barberias/:barberiaId/barberos/:barberoId/ausencias` | Recibe `RegistroAusenciaDTO` (`tipo`: `DIA_LIBRE`, `PERMISO` o `BLOQUEO`; `desde` y `hasta` en ISO 8601 **con zona**, como `2026-11-10T14:00:00-05:00`) y responde `201` con `AusenciaDTO`, vigente desde que se guarda: sin solicitud ni aprobación (CAR-06, D-16). Los instantes se guardan en UTC y salen en la hora de Bogotá (`-05:00`). La registra el administrador, también con la barbería suspendida (D-03) | `400` formato, fecha inexistente o la ausencia no termina después de empezar; `404` la barbería no existe o el usuario no es barbero de ella; `409` barbero desvinculado |
+| `GET` | `/barberias/:barberiaId/barberos/:barberoId/ausencias` | Las ausencias del barbero, de la que empieza antes a la que empieza después, **también las anuladas** (campo `anulada`) (CAR-06) | `404` el usuario no es barbero de esa barbería |
+| `PUT` | `/barberias/:barberiaId/barberos/:barberoId/ausencias/:ausenciaId` | Recibe `RegistroAusenciaDTO` y reemplaza el tipo y el intervalo; responde `200` con `AusenciaDTO` (CAR-06, D-16) | `400`; `404` la barbería, el barbero o la ausencia de ese barbero no existen; `409` barbero desvinculado o ausencia anulada |
+| `POST` | `/barberias/:barberiaId/barberos/:barberoId/ausencias/:ausenciaId/anulacion` | **Sin cuerpo.** Anula la ausencia sin borrarla y responde `200` con `AusenciaDTO` en `anulada: true`: deja de restar disponibilidad, pero sigue en la lista (CAR-06, D-16) | `404` como en el `PUT`; `409` barbero desvinculado o ausencia ya anulada |
 
 Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos. La entidad ya
 existe: `Usuario`, con `rol` (`OPERADOR`, `ADMINISTRADOR`, `BARBERO` o `CLIENTE`), `barberiaId` solo para el
@@ -512,14 +521,21 @@ curl -X POST http://localhost:3000/api/barberias/<ID>/suspension -H "Content-Typ
   -d '{"motivo":"Incumple la política de precios publicada"}'
 ```
 
-La jornada necesita el id de un usuario con rol `BARBERO`, y la API todavía no crea usuarios: llega con
-`VincularBarbero` (#18). Mientras tanto, la cuenta se crea con Prisma Studio (`npm run db:studio`) y la
-jornada se prueba así, dentro del horario de arriba:
+La jornada y las ausencias necesitan el id de un usuario con rol `BARBERO`, y la API todavía no crea
+usuarios: llega con `VincularBarbero` (#18). Mientras tanto, la cuenta se crea con Prisma Studio
+(`npm run db:studio`) y la jornada se prueba así, dentro del horario de arriba. `<AUSENCIA>` es el id que
+devuelve el registro de la ausencia:
 
 ```bash
 curl -X PUT http://localhost:3000/api/barberias/<ID>/barberos/<BARBERO>/jornada -H "Content-Type: application/json" \
   -d '{"franjas":[{"diaSemana":"LUNES","inicio":"09:00","fin":"12:00"},{"diaSemana":"LUNES","inicio":"14:00","fin":"18:00"}]}'
 curl http://localhost:3000/api/barberias/<ID>/barberos/<BARBERO>/jornada
+curl -X POST http://localhost:3000/api/barberias/<ID>/barberos/<BARBERO>/ausencias -H "Content-Type: application/json" \
+  -d '{"tipo":"PERMISO","desde":"2026-11-10T14:00:00-05:00","hasta":"2026-11-10T16:00:00-05:00"}'
+curl -X PUT http://localhost:3000/api/barberias/<ID>/barberos/<BARBERO>/ausencias/<AUSENCIA> -H "Content-Type: application/json" \
+  -d '{"tipo":"DIA_LIBRE","desde":"2026-11-10T00:00:00-05:00","hasta":"2026-11-11T00:00:00-05:00"}'
+curl -X POST http://localhost:3000/api/barberias/<ID>/barberos/<BARBERO>/ausencias/<AUSENCIA>/anulacion
+curl http://localhost:3000/api/barberias/<ID>/barberos/<BARBERO>/ausencias
 ```
 
 ### Problemas frecuentes
@@ -557,7 +573,7 @@ un cliente futuro) no tenga que deducir nada:
 | Patrón | Dónde | Estado |
 |---|---|---|
 | **DAO / Repository** | `dominio/puertos`: `guardar`, `porId`, `activosDe`; nunca SQL | Implementado |
-| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`, `UsuarioDAOPrisma`, `HorarioAtencionDAOPrisma`, `JornadaDAOPrisma`, `ClavesBcrypt`, `TokensJwt`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia y seguridad) |
+| **Adapter** | `BarberiaDAOPrisma`, `ServicioDAOPrisma`, `UsuarioDAOPrisma`, `HorarioAtencionDAOPrisma`, `JornadaDAOPrisma`, `AusenciaDAOPrisma`, `ClavesBcrypt`, `TokensJwt`; después `PasarelaPagosSandbox`, `NotificadorCorreo` | Implementado (persistencia y seguridad) |
 | **Strategy** | `PoliticaCancelacion`, `PoliticaAsignacionEspacios` | con la reserva |
 | **State** | `Turno` + `EstadoTurno`: las transiciones inválidas se vuelven imposibles | con el turno |
 | **Observer** | Eventos del turno que disparan notificaciones e historial | con la reserva |
@@ -809,3 +825,9 @@ Reglas que ya fija el código, aunque no estén en el Documento de Visión:
   caber en un tramo continuo del horario de atención de ese día: las franjas contiguas del horario cuentan
   como una sola, porque entre ellas la barbería no cierra. Se registra en cualquier estado de la barbería
   (D-03), pero no a un barbero desvinculado (`409`).
+- Una ausencia termina después de empezar y es de un barbero activo de esa barbería. Se registra,
+  modifica y anula en cualquier estado de la barbería (D-03), pero no a un barbero desvinculado (`409`).
+  Sus instantes llegan con la zona explícita, porque sin ella `2026-11-10T08:00` sería ambiguo; se guardan
+  en UTC y salen en la hora de Bogotá. No se comparan con la jornada ni entre sí: eso le toca a la
+  disponibilidad (#37).
+- Una ausencia se **anula**, no se borra: anulada, ya no se modifica ni se vuelve a anular (`409`).

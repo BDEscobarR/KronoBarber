@@ -1,3 +1,4 @@
+import { TIPOS_AUSENCIA } from '../../dominio/modelo/Ausencia'
 import { ESTADOS_BARBERIA } from '../../dominio/modelo/Barberia'
 import { DIAS_SEMANA } from '../../dominio/modelo/HorarioAtencion'
 import {
@@ -174,6 +175,42 @@ const jornada = {
     },
   },
   required: ['franjas'],
+}
+
+/** Esquema de `RegistroAusenciaDTO`: lo que envía el administrador para registrar o modificar una ausencia. */
+const registroAusencia = {
+  type: 'object',
+  description:
+    'Una ausencia del barbero (`RegistroAusenciaDTO`). La barbería y el barbero se toman de la URL. Los instantes ' +
+    'llevan la zona explícita (`Z` o `±HH:MM`); en la hora de Bogotá, `-05:00`.',
+  properties: {
+    tipo: { type: 'string', enum: TIPOS_AUSENCIA, example: 'PERMISO' },
+    desde: { type: 'string', format: 'date-time', example: '2026-11-10T14:00:00-05:00' },
+    hasta: {
+      type: 'string',
+      format: 'date-time',
+      description: 'Posterior a `desde`.',
+      example: '2026-11-10T16:00:00-05:00',
+    },
+  },
+  required: ['tipo', 'desde', 'hasta'],
+}
+
+/** Esquema de `AusenciaDTO`: una ausencia registrada. */
+const ausencia = {
+  type: 'object',
+  description:
+    'Una ausencia registrada (`AusenciaDTO`). Los instantes salen en la hora de America/Bogotá (`-05:00`). ' +
+    'Anulada, deja de restar disponibilidad, pero no se borra.',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    barberoId: { type: 'string', format: 'uuid' },
+    tipo: { type: 'string', enum: TIPOS_AUSENCIA, example: 'PERMISO' },
+    desde: { type: 'string', format: 'date-time', example: '2026-11-10T14:00:00-05:00' },
+    hasta: { type: 'string', format: 'date-time', example: '2026-11-10T16:00:00-05:00' },
+    anulada: { type: 'boolean', example: false },
+  },
+  required: ['id', 'barberoId', 'tipo', 'desde', 'hasta', 'anulada'],
 }
 
 /**
@@ -496,6 +533,61 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{barberiaId}/barberos/{barberoId}/ausencias': {
+      get: {
+        tags: ['Barberos'],
+        summary: 'Ausencias de un barbero (CAR-06)',
+        description: 'Todas sus ausencias, de la que empieza antes a la que empieza después, también las anuladas.',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        responses: {
+          200: { description: 'Las ausencias; una lista vacía si no tiene ninguna', content: lista('AusenciaDTO') },
+          404: fallo('El usuario no es barbero de esta barbería'),
+        },
+      },
+      post: {
+        tags: ['Barberos'],
+        summary: 'El administrador registra un día libre, un permiso o un bloqueo (CAR-06, D-16)',
+        description:
+          'Sin solicitud ni aprobación: el barbero se lo comunica al administrador fuera del sistema, y la ausencia ' +
+          'rige desde que se guarda. Vale también con la barbería suspendida (D-03).',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        requestBody: { required: true, content: json('RegistroAusenciaDTO') },
+        responses: {
+          201: { description: 'Ausencia registrada', content: json('AusenciaDTO') },
+          400: fallo('Formato inválido, o la ausencia no termina después de empezar'),
+          404: fallo('La barbería no existe, o el usuario no es barbero de ella'),
+          409: fallo('El barbero está desvinculado'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/barberos/{barberoId}/ausencias/{ausenciaId}': {
+      put: {
+        tags: ['Barberos'],
+        summary: 'El administrador modifica una ausencia (CAR-06, D-16)',
+        description: 'Reemplaza el tipo y el intervalo. Una ausencia anulada no se modifica.',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId'), parametroId('ausenciaId')],
+        requestBody: { required: true, content: json('RegistroAusenciaDTO') },
+        responses: {
+          200: { description: 'Ausencia modificada', content: json('AusenciaDTO') },
+          400: fallo('Formato inválido, o la ausencia no termina después de empezar'),
+          404: fallo('La barbería no existe, el usuario no es barbero de ella o la ausencia no es de ese barbero'),
+          409: fallo('El barbero está desvinculado, o la ausencia está anulada'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/barberos/{barberoId}/ausencias/{ausenciaId}/anulacion': {
+      post: {
+        tags: ['Barberos'],
+        summary: 'El administrador anula una ausencia (CAR-06, D-16)',
+        description: 'Sin cuerpo. Anulada, deja de restar disponibilidad, pero no se borra: sigue en la lista.',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId'), parametroId('ausenciaId')],
+        responses: {
+          200: { description: 'Ausencia con `anulada: true`', content: json('AusenciaDTO') },
+          404: fallo('La barbería no existe, el usuario no es barbero de ella o la ausencia no es de ese barbero'),
+          409: fallo('El barbero está desvinculado, o la ausencia ya estaba anulada'),
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -507,6 +599,8 @@ export const openapi = {
       CreacionServicioDTO: creacionServicio,
       ConfiguracionHorarioDTO: configuracionHorario,
       JornadaDTO: jornada,
+      RegistroAusenciaDTO: registroAusencia,
+      AusenciaDTO: ausencia,
       Error: error,
     },
   },
