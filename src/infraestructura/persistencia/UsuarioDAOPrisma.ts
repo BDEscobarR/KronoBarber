@@ -57,7 +57,7 @@ export class UsuarioDAOPrisma implements UsuarioDAO {
    */
   async porId(id: string): Promise<Usuario | null> {
     const fila = await this.prisma.usuario.findUnique({ where: { id } })
-    return fila && aDominio(fila)
+    return fila ? aDominio(fila) : null
   }
 
   /**
@@ -68,6 +68,20 @@ export class UsuarioDAOPrisma implements UsuarioDAO {
    */
   async porCorreo(correo: string): Promise<Usuario | null> {
     const fila = await this.prisma.usuario.findUnique({ where: { correo } })
-    return fila && aDominio(fila)
+    return fila ? aDominio(fila) : null
+  }
+
+  /**
+   * Lista los barberos vinculados a una barbería específica ([F3]/[#17]).
+   *
+   * @param barberiaId Identificador de la barbería.
+   * @returns Lista de usuarios con rol BARBERO ordenados por nombre.
+   */
+  async barberosDe(barberiaId: string): Promise<Usuario[]> {
+    const filas = await this.prisma.usuario.findMany({
+      where: { barberiaId, rol: 'BARBERO' },
+      orderBy: { nombre: 'asc' },
+    })
+    return filas.map(aDominio)
   }
 }
