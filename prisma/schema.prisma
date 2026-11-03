@@ -7,6 +7,15 @@ datasource db {
   provider = "sqlserver"
 }
 
+model BarberoServicio {
+  barberoId  String   @db.NVarChar(36)
+  servicioId String   @db.NVarChar(36)
+  usuario    Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicio   Servicio @relation(fields: [servicioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([barberoId, servicioId])
+}
+
 // SQL Server no admite `enum` en Prisma: el estado se guarda como texto y la lista
 // de valores válidos vive en el dominio (ESTADOS_BARBERIA). El DAO la comprueba al leer.
 model Barberia {
@@ -39,7 +48,7 @@ model Servicio {
   // SQL Server no admite `Restrict`; `NoAction` produce el mismo efecto: una barbería
   // con catálogo no se puede borrar. Las barberías se suspenden, no se borran.
   barberia        Barberia @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
+  barberosAsignados BarberoServicio[]
   @@unique([barberiaId, nombre])
 }
 
@@ -57,6 +66,9 @@ model Usuario {
   creadoEn   DateTime  @default(now())
   // Una barbería con personal no se puede borrar, igual que una con catálogo.
   barberia   Barberia? @relation(fields: [barberiaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  jornadas   Jornada[]
+  serviciosAsignados BarberoServicio[]
+  ausencias          Ausencia[]
 }
 
 // Horario de atención (CAR-05): límite exterior de toda disponibilidad (RES-07). SQL Server no
@@ -79,4 +91,43 @@ model HorarioAtencion {
 
   @@index([barberiaId, diaSemana])
   @@index([barberiaId, fecha])
+}
+
+// Jornada del barbero (CAR-06): sus franjas semanales, siempre dentro del horario de atención de su
+// barbería (RES-07). Un renglón es una franja; varias el mismo día son una jornada partida. No existe
+// tabla Barbero: `barberoId` apunta a `Usuario.id`, y que ese usuario sea BARBERO lo exige el dominio
+// (la BD no puede exigir el rol). La barbería no se repite aquí: es la del barbero. `diaSemana` es
+// texto, como en HorarioAtencion.
+model Jornada {
+  id         String   @id @default(uuid()) @db.NVarChar(36)
+  barberoId  String   @db.NVarChar(36)
+  diaSemana  String   @db.VarChar(10)
+  horaInicio String   @db.VarChar(5)
+  horaFin    String   @db.VarChar(5)
+  creadoEn   DateTime @default(now())
+  // Un barbero se desvincula (`activo = false`), no se borra: su jornada lo referencia.
+  barbero    Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([barberoId, diaSemana])
+}
+
+// Ausencia del barbero (CAR-06): un día libre, un permiso o un bloqueo, el tiempo en que no atiende
+// dentro de su jornada. La registra el administrador, sin solicitud ni aprobación, y rige de inmediato
+// (D-16). `tipo` es texto, como `estado` en Barberia: la lista válida vive en el dominio
+// (TIPOS_AUSENCIA) y el DAO la comprueba al leer. `desde` y `hasta` son instantes en UTC; la API los
+// presenta en America/Bogotá (regla 10). Como en Jornada, `barberoId` apunta a `Usuario.id` y que sea
+// BARBERO lo exige el dominio.
+model Ausencia {
+  id        String   @id @default(uuid()) @db.NVarChar(36)
+  barberoId String   @db.NVarChar(36)
+  tipo      String   @db.VarChar(30)
+  desde     DateTime
+  hasta     DateTime
+  // Una ausencia se anula, no se borra: deja de restar disponibilidad, pero queda en el historial.
+  anulada   Boolean  @default(false)
+  creadoEn  DateTime @default(now())
+  // Un barbero se desvincula (`activo = false`), no se borra: sus ausencias lo referencian.
+  barbero   Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([barberoId, desde])
 }

@@ -70,7 +70,7 @@ export class ServicioDAOPrisma implements ServicioDAO {
    */
   async porNombre(barberiaId: string, nombre: string): Promise<Servicio | null> {
     const fila = await this.prisma.servicio.findUnique({ where: { barberiaId_nombre: { barberiaId, nombre } } })
-    return fila && aDominio(fila)
+    return fila ? aDominio(fila) : null
   }
 
   /**
@@ -107,7 +107,7 @@ export class ServicioDAOPrisma implements ServicioDAO {
    */
   async porId(barberiaId: string, id: string): Promise<Servicio | null> {
     const fila = await this.prisma.servicio.findFirst({ where: { id, barberiaId } })
-    return fila && aDominio(fila)
+    return fila ? aDominio(fila) : null
   }
 
   /**
@@ -120,5 +120,35 @@ export class ServicioDAOPrisma implements ServicioDAO {
    */
   async cambiarEstado(id: string, activo: boolean): Promise<Servicio> {
     return aDominio(await this.prisma.servicio.update({ where: { id }, data: { activo } }))
+  }
+
+  /**
+   * Servicios asignados a un barbero específico ([F3]/[#17]).
+   *
+   * @param barberoId Identificador del usuario con rol BARBERO.
+   * @returns Lista de servicios asignados ordenados por nombre.
+   */
+  async deBarbero(barberoId: string): Promise<Servicio[]> {
+    const filas = await this.prisma.barberoServicio.findMany({
+      where: { barberoId },
+      include: { servicio: true },
+      orderBy: { servicio: { nombre: 'asc' } },
+    })
+    return filas.map((bs) => aDominio(bs.servicio))
+  }
+
+  /**
+   * Reemplaza atómicamente la lista de servicios asignados a un barbero ([F3]/[#17]).
+   *
+   * @param barberoId Identificador del usuario con rol BARBERO.
+   * @param serviciosIds Lista de IDs de los servicios a asignar.
+   */
+  async asignarABarbero(barberoId: string, serviciosIds: string[]): Promise<void> {
+    await this.prisma.$transaction([
+      this.prisma.barberoServicio.deleteMany({ where: { barberoId } }),
+      this.prisma.barberoServicio.createMany({
+        data: serviciosIds.map((servicioId) => ({ barberoId, servicioId })),
+      }),
+    ])
   }
 }

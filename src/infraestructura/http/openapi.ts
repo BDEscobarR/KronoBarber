@@ -1,3 +1,4 @@
+import { TIPOS_AUSENCIA } from '../../dominio/modelo/Ausencia'
 import { ESTADOS_BARBERIA } from '../../dominio/modelo/Barberia'
 import { DIAS_SEMANA } from '../../dominio/modelo/HorarioAtencion'
 import {
@@ -124,6 +125,17 @@ const creacionServicio = {
 /** Patrón de una hora `HH:MM`, de `00:00` a `23:59`: el mismo que comprueba `esHoraValida`. */
 const HORA = '^([01][0-9]|2[0-3]):[0-5][0-9]$'
 
+/** Esquema de `FranjaSemanal`: un día de la semana y su intervalo. Lo comparten el horario y la jornada. */
+const franjaSemanal = {
+  type: 'object',
+  properties: {
+    diaSemana: { type: 'string', enum: DIAS_SEMANA, example: 'LUNES' },
+    inicio: { type: 'string', pattern: HORA, example: '08:00' },
+    fin: { type: 'string', pattern: HORA, description: 'Posterior a `inicio`.', example: '12:00' },
+  },
+  required: ['diaSemana', 'inicio', 'fin'],
+}
+
 /** Esquema de `ConfiguracionHorarioDTO`: el horario de atención completo de una barbería. */
 const configuracionHorario = {
   type: 'object',
@@ -135,15 +147,7 @@ const configuracionHorario = {
     franjas: {
       type: 'array',
       description: 'Franjas semanales. Varias para el mismo día permiten la jornada partida, sin solaparse.',
-      items: {
-        type: 'object',
-        properties: {
-          diaSemana: { type: 'string', enum: DIAS_SEMANA, example: 'LUNES' },
-          inicio: { type: 'string', pattern: HORA, example: '08:00' },
-          fin: { type: 'string', pattern: HORA, description: 'Posterior a `inicio`.', example: '12:00' },
-        },
-        required: ['diaSemana', 'inicio', 'fin'],
-      },
+      items: franjaSemanal,
     },
     cierres: {
       type: 'array',
@@ -152,6 +156,61 @@ const configuracionHorario = {
     },
   },
   required: ['franjas', 'cierres'],
+}
+
+/** Esquema de `JornadaDTO`: la jornada completa de un barbero. */
+const jornada = {
+  type: 'object',
+  description:
+    'Jornada completa de un barbero (`JornadaDTO`). Reemplaza a la anterior: lo que no viene deja de existir. ' +
+    '`barberoId` solo sale en la respuesta; en la petición se toma de la URL.',
+  properties: {
+    barberoId: { type: 'string', format: 'uuid', readOnly: true },
+    franjas: {
+      type: 'array',
+      description:
+        'Franjas semanales, cada una dentro del horario de atención de ese día (RES-07). Varias el mismo día ' +
+        'son una jornada partida, sin solaparse. La respuesta las ordena por día y hora.',
+      items: franjaSemanal,
+    },
+  },
+  required: ['franjas'],
+}
+
+/** Esquema de `RegistroAusenciaDTO`: lo que envía el administrador para registrar o modificar una ausencia. */
+const registroAusencia = {
+  type: 'object',
+  description:
+    'Una ausencia del barbero (`RegistroAusenciaDTO`). La barbería y el barbero se toman de la URL. Los instantes ' +
+    'llevan la zona explícita (`Z` o `±HH:MM`); en la hora de Bogotá, `-05:00`.',
+  properties: {
+    tipo: { type: 'string', enum: TIPOS_AUSENCIA, example: 'PERMISO' },
+    desde: { type: 'string', format: 'date-time', example: '2026-11-10T14:00:00-05:00' },
+    hasta: {
+      type: 'string',
+      format: 'date-time',
+      description: 'Posterior a `desde`.',
+      example: '2026-11-10T16:00:00-05:00',
+    },
+  },
+  required: ['tipo', 'desde', 'hasta'],
+}
+
+/** Esquema de `AusenciaDTO`: una ausencia registrada. */
+const ausencia = {
+  type: 'object',
+  description:
+    'Una ausencia registrada (`AusenciaDTO`). Los instantes salen en la hora de America/Bogotá (`-05:00`). ' +
+    'Anulada, deja de restar disponibilidad, pero no se borra.',
+  properties: {
+    id: { type: 'string', format: 'uuid' },
+    barberoId: { type: 'string', format: 'uuid' },
+    tipo: { type: 'string', enum: TIPOS_AUSENCIA, example: 'PERMISO' },
+    desde: { type: 'string', format: 'date-time', example: '2026-11-10T14:00:00-05:00' },
+    hasta: { type: 'string', format: 'date-time', example: '2026-11-10T16:00:00-05:00' },
+    anulada: { type: 'boolean', example: false },
+  },
+  required: ['id', 'barberoId', 'tipo', 'desde', 'hasta', 'anulada'],
 }
 
 /**
@@ -204,7 +263,7 @@ export const openapi = {
       'Las guardas por rol (CAR-17) todavía no existen: hoy todos los endpoints son abiertos.',
   },
   servers: [{ url: '/api' }],
-  tags: [{ name: 'Salud' }, { name: 'Barberías' }, { name: 'Servicios' }],
+  tags: [{ name: 'Salud' }, { name: 'Barberías' }, { name: 'Servicios' }, { name: 'Barberos' }],
   paths: {
     '/salud': {
       get: {
@@ -312,6 +371,19 @@ export const openapi = {
       },
     },
     '/barberias/{id}/horario': {
+      get: {
+        tags: ['Barberías'],
+        summary: 'Horario de atención de una barbería habilitada (CAR-05, D-06)',
+        description:
+          'Público, como la vitrina de servicios: solo se ve el de una barbería habilitada (RES-11). Responde con ' +
+          'la misma forma que el `PUT`: franjas de lunes a domingo y por hora, y cierres por fecha. Sin horario ' +
+          'configurado, las dos listas vienen vacías.',
+        parameters: [parametroId('id')],
+        responses: {
+          200: { description: 'El horario de atención', content: json('ConfiguracionHorarioDTO') },
+          404: fallo('La barbería no existe o no está habilitada'),
+        },
+      },
       put: {
         tags: ['Barberías'],
         summary: 'Configura el horario de atención: franjas semanales y cierres por fecha (CAR-05)',
@@ -433,6 +505,89 @@ export const openapi = {
         },
       },
     },
+    '/barberias/{barberiaId}/barberos/{barberoId}/jornada': {
+      get: {
+        tags: ['Barberos'],
+        summary: 'Jornada registrada de un barbero (CAR-06)',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        responses: {
+          200: { description: 'La jornada; sin franjas si todavía no tiene', content: json('JornadaDTO') },
+          404: fallo('El usuario no es barbero de esta barbería'),
+        },
+      },
+      put: {
+        tags: ['Barberos'],
+        summary: 'El administrador registra la jornada de un barbero (CAR-06, D-16)',
+        description:
+          'Reemplaza la jornada completa. La define el barbero, pero la registra el administrador de su barbería. ' +
+          'Cada franja debe caber en el horario de atención de ese día (RES-07): con jornada partida no puede ' +
+          'cruzar el cierre del mediodía, y las franjas contiguas del horario cuentan como una sola. Vale también ' +
+          'con la barbería suspendida (D-03).',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        requestBody: { required: true, content: json('JornadaDTO') },
+        responses: {
+          200: { description: 'Jornada guardada en lugar de la anterior', content: json('JornadaDTO') },
+          400: fallo('Formato inválido, franja que no empieza antes de terminar o franjas solapadas'),
+          404: fallo('La barbería no existe, o el usuario no es barbero de ella'),
+          409: fallo('El barbero está desvinculado, o una franja se sale del horario de atención'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/barberos/{barberoId}/ausencias': {
+      get: {
+        tags: ['Barberos'],
+        summary: 'Ausencias de un barbero (CAR-06)',
+        description: 'Todas sus ausencias, de la que empieza antes a la que empieza después, también las anuladas.',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        responses: {
+          200: { description: 'Las ausencias; una lista vacía si no tiene ninguna', content: lista('AusenciaDTO') },
+          404: fallo('El usuario no es barbero de esta barbería'),
+        },
+      },
+      post: {
+        tags: ['Barberos'],
+        summary: 'El administrador registra un día libre, un permiso o un bloqueo (CAR-06, D-16)',
+        description:
+          'Sin solicitud ni aprobación: el barbero se lo comunica al administrador fuera del sistema, y la ausencia ' +
+          'rige desde que se guarda. Vale también con la barbería suspendida (D-03).',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId')],
+        requestBody: { required: true, content: json('RegistroAusenciaDTO') },
+        responses: {
+          201: { description: 'Ausencia registrada', content: json('AusenciaDTO') },
+          400: fallo('Formato inválido, o la ausencia no termina después de empezar'),
+          404: fallo('La barbería no existe, o el usuario no es barbero de ella'),
+          409: fallo('El barbero está desvinculado'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/barberos/{barberoId}/ausencias/{ausenciaId}': {
+      put: {
+        tags: ['Barberos'],
+        summary: 'El administrador modifica una ausencia (CAR-06, D-16)',
+        description: 'Reemplaza el tipo y el intervalo. Una ausencia anulada no se modifica.',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId'), parametroId('ausenciaId')],
+        requestBody: { required: true, content: json('RegistroAusenciaDTO') },
+        responses: {
+          200: { description: 'Ausencia modificada', content: json('AusenciaDTO') },
+          400: fallo('Formato inválido, o la ausencia no termina después de empezar'),
+          404: fallo('La barbería no existe, el usuario no es barbero de ella o la ausencia no es de ese barbero'),
+          409: fallo('El barbero está desvinculado, o la ausencia está anulada'),
+        },
+      },
+    },
+    '/barberias/{barberiaId}/barberos/{barberoId}/ausencias/{ausenciaId}/anulacion': {
+      post: {
+        tags: ['Barberos'],
+        summary: 'El administrador anula una ausencia (CAR-06, D-16)',
+        description: 'Sin cuerpo. Anulada, deja de restar disponibilidad, pero no se borra: sigue en la lista.',
+        parameters: [parametroId('barberiaId'), parametroId('barberoId'), parametroId('ausenciaId')],
+        responses: {
+          200: { description: 'Ausencia con `anulada: true`', content: json('AusenciaDTO') },
+          404: fallo('La barbería no existe, el usuario no es barbero de ella o la ausencia no es de ese barbero'),
+          409: fallo('El barbero está desvinculado, o la ausencia ya estaba anulada'),
+        },
+      },
+    },
   },
   components: {
     schemas: {
@@ -443,6 +598,9 @@ export const openapi = {
       ServicioDTO: servicio,
       CreacionServicioDTO: creacionServicio,
       ConfiguracionHorarioDTO: configuracionHorario,
+      JornadaDTO: jornada,
+      RegistroAusenciaDTO: registroAusencia,
+      AusenciaDTO: ausencia,
       Error: error,
     },
   },
