@@ -3,6 +3,7 @@ import type { ServicioDAO } from '../../src/dominio/puertos'
 
 export class ServicioDAOEnMemoria implements ServicioDAO {
   private readonly filas: Servicio[] = []
+  private readonly asignaciones: Map<string, string[]> = new Map()
 
   async guardar(servicio: ServicioNuevo): Promise<Servicio> {
     const fila = { ...servicio, id: String(this.filas.length + 1) }
@@ -43,5 +44,14 @@ export class ServicioDAOEnMemoria implements ServicioDAO {
     if (!fila) throw new Error(`No existe el servicio ${id}`)
     fila.activo = activo
     return fila
+  }
+
+  async deBarbero(barberoId: string): Promise<Servicio[]> {
+    const idsAsignados = this.asignaciones.get(barberoId) ?? []
+    return this.filas.filter((s) => idsAsignados.includes(s.id))
+  }
+
+  async asignarABarbero(barberoId: string, serviciosIds: string[]): Promise<void> {
+    this.asignaciones.set(barberoId, [...serviciosIds])
   }
 }

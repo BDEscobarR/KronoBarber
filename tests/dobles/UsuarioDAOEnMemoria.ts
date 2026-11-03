@@ -17,4 +17,8 @@ export class UsuarioDAOEnMemoria implements UsuarioDAO {
   async porCorreo(correo: string): Promise<Usuario | null> {
     return this.filas.find((u) => u.correo === correo) ?? null
   }
+
+  async barberosDe(barberiaId: string): Promise<Usuario[]> {
+    return this.filas.filter((u) => u.barberiaId === barberiaId && u.rol === 'BARBERO')
+  }
 }
