@@ -13,8 +13,6 @@ import { ServicioClavesEnMemoria } from '../dobles/ServicioClavesEnMemoria'
 import { ServicioTokensEnMemoria } from '../dobles/ServicioTokensEnMemoria'
 import { BarberiaRequeridaParaRol, ClaveInvalida, RegistrarUsuario, RolNoPerteneceABarberia } from '../../src/aplicacion/casos-uso/RegistrarUsuario'
 import { CorreoYaRegistrado } from '../../src/aplicacion/casos-uso/CorreoYaRegistrado'
-import { UsuarioDAOEnMemoria } from '../dobles/UsuarioDAOEnMemoria'
-import { ServicioClavesEnMemoria } from '../dobles/ServicioClavesEnMemoria'
 
 const ADMINISTRADOR: Usuario = {
   id: '1',
@@ -116,6 +114,9 @@ describe('IniciarSesion', () => {
 
     expect(resultados.every((error) => error instanceof CredencialesInvalidas)).toBe(true)
     expect(new Set(resultados.map((error) => (error as Error).message)).size).toBe(1)
+  })
+})
+
 describe('RegistrarUsuario', () => {
   function armar() {
     const usuarios = new UsuarioDAOEnMemoria()
