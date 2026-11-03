@@ -111,17 +111,23 @@ model Jornada {
   @@index([barberoId, diaSemana])
 }
 
-// Ausencia del barbero (CAR-xx / F3): días libres, permisos y bloqueos.
-// Igual que en Usuario y Barberia: `tipo` es texto y los valores válidos viven
-// en el dominio (TIPOS_AUSENCIA). `barberoId` apunta a Usuario.id.
+// Ausencia del barbero (CAR-06): un día libre, un permiso o un bloqueo, el tiempo en que no atiende
+// dentro de su jornada. La registra el administrador, sin solicitud ni aprobación, y rige de inmediato
+// (D-16). `tipo` es texto, como `estado` en Barberia: la lista válida vive en el dominio
+// (TIPOS_AUSENCIA) y el DAO la comprueba al leer. `desde` y `hasta` son instantes en UTC; la API los
+// presenta en America/Bogotá (regla 10). Como en Jornada, `barberoId` apunta a `Usuario.id` y que sea
+// BARBERO lo exige el dominio.
 model Ausencia {
   id        String   @id @default(uuid()) @db.NVarChar(36)
   barberoId String   @db.NVarChar(36)
   tipo      String   @db.VarChar(30)
   desde     DateTime
   hasta     DateTime
+  // Una ausencia se anula, no se borra: deja de restar disponibilidad, pero queda en el historial.
+  anulada   Boolean  @default(false)
   creadoEn  DateTime @default(now())
+  // Un barbero se desvincula (`activo = false`), no se borra: sus ausencias lo referencian.
   barbero   Usuario  @relation(fields: [barberoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
 
-  @@index([barberoId])
+  @@index([barberoId, desde])
 }

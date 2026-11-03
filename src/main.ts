@@ -17,6 +17,9 @@ import { ActualizarServicio } from './aplicacion/casos-uso/ActualizarServicio'
 import { DesactivarServicio } from './aplicacion/casos-uso/DesactivarServicio'
 import { ActivarServicio } from './aplicacion/casos-uso/ActivarServicio'
 import { DefinirJornada } from './aplicacion/casos-uso/DefinirJornada'
+import { RegistrarAusencia } from './aplicacion/casos-uso/RegistrarAusencia'
+import { ModificarAusencia } from './aplicacion/casos-uso/ModificarAusencia'
+import { AnularAusencia } from './aplicacion/casos-uso/AnularAusencia'
 import { prisma } from './infraestructura/persistencia/prisma'
 import { BarberiaDAOPrisma } from './infraestructura/persistencia/BarberiaDAOPrisma'
 import { ServicioDAOPrisma } from './infraestructura/persistencia/ServicioDAOPrisma'
@@ -25,6 +28,7 @@ import { ClavesBcrypt } from './infraestructura/seguridad/ClavesBcrypt'
 import { TokensJwt } from './infraestructura/seguridad/TokensJwt'
 import { UsuarioDAOPrisma } from './infraestructura/persistencia/UsuarioDAOPrisma'
 import { JornadaDAOPrisma } from './infraestructura/persistencia/JornadaDAOPrisma'
+import { AusenciaDAOPrisma } from './infraestructura/persistencia/AusenciaDAOPrisma'
 import { crearServidor } from './infraestructura/http/servidor'
 
 /** Secreto de firma de las sesiones (CAR-17). Sin él la aplicación no arranca. */
@@ -40,12 +44,14 @@ const claves = new ClavesBcrypt()
 const tokens = new TokensJwt(secretoJwt)
 const usuarios = new UsuarioDAOPrisma(prisma)
 const jornadas = new JornadaDAOPrisma(prisma)
+const ausencias = new AusenciaDAOPrisma(prisma)
 
 const app = crearServidor({
   barberias,
   servicios,
   usuarios,
   jornadas,
+  ausencias,
   registrarBarberia: new RegistrarBarberia(barberias),
   actualizarPerfilBarberia: new ActualizarPerfilBarberia(barberias),
   habilitarBarberia: new HabilitarBarberia(barberias),
@@ -57,6 +63,9 @@ const app = crearServidor({
   desactivarServicio: new DesactivarServicio(servicios),
   activarServicio: new ActivarServicio(servicios),
   definirJornada: new DefinirJornada(barberias, usuarios, horarios, jornadas),
+  registrarAusencia: new RegistrarAusencia(barberias, usuarios, ausencias),
+  modificarAusencia: new ModificarAusencia(barberias, usuarios, ausencias),
+  anularAusencia: new AnularAusencia(barberias, usuarios, ausencias),
 })
 
 /** Puerto HTTP: `PUERTO` del `.env`, o 3000 si no está definido. */

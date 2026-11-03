@@ -4,6 +4,7 @@
 // `...DTO`: estructura de datos que cruza una frontera.
 // Sin sufijo: contratos de comportamiento, que no son ni datos ni persistencia.
 
+import type { Ausencia, AusenciaNueva, CambiosAusencia } from '../modelo/Ausencia'
 import type { Barberia, BarberiaNueva, EstadoBarberia, PerfilBarberia } from '../modelo/Barberia'
 import type { HorarioAtencion, HorarioAtencionNuevo } from '../modelo/HorarioAtencion'
 import type { Jornada, JornadaNueva } from '../modelo/Jornada'
@@ -137,6 +138,60 @@ export interface JornadaDAO {
    * @returns Las franjas guardadas, con los ids que les asignó la base de datos.
    */
   reemplazar(barberoId: string, franjas: JornadaNueva[]): Promise<Jornada[]>
+}
+
+/**
+ * Acceso a datos de las ausencias de los barberos (CAR-06). Lo declara el dominio y lo implementa la
+ * infraestructura (`AusenciaDAOPrisma`); las pruebas usan un doble en memoria.
+ *
+ * Filtra por barbero, no por barbería, igual que `JornadaDAO`: quien lo usa comprueba antes que el
+ * barbero sea de la barbería de la URL (RES-02, `esBarberoDe`). Una ausencia se anula, no se borra.
+ */
+export interface AusenciaDAO {
+  /**
+   * Persiste una ausencia nueva.
+   *
+   * @param ausencia Datos completos, sin id.
+   * @returns La ausencia guardada, con el id que le asignó la base de datos.
+   */
+  guardar(ausencia: AusenciaNueva): Promise<Ausencia>
+
+  /**
+   * Busca una ausencia de un barbero. Si la ausencia existe pero es de otro barbero, no la encuentra:
+   * el aislamiento (RES-02) se aplica en la propia consulta, como en `ServicioDAO.porId`.
+   *
+   * @param barberoId Barbero dueño de la ausencia.
+   * @param id Identificador de la ausencia.
+   * @returns La ausencia, o `null` si ese barbero no tiene una con ese id.
+   */
+  porId(barberoId: string, id: string): Promise<Ausencia | null>
+
+  /**
+   * Todas las ausencias de un barbero, también las anuladas, ordenadas por inicio.
+   *
+   * @param barberoId Barbero dueño de las ausencias.
+   * @returns Sus ausencias; una lista vacía si no tiene ninguna.
+   */
+  deBarbero(barberoId: string): Promise<Ausencia[]>
+
+  /**
+   * Reemplaza el tipo y el intervalo de una ausencia. Si el cambio está permitido lo decide el caso
+   * de uso, no el DAO.
+   *
+   * @param id Identificador de una ausencia que ya existe (el caso de uso lo comprueba antes).
+   * @param cambios Tipo e intervalo nuevos.
+   * @returns La ausencia modificada.
+   */
+  actualizar(id: string, cambios: CambiosAusencia): Promise<Ausencia>
+
+  /**
+   * Marca una ausencia como anulada. No la borra: deja de restar disponibilidad, pero queda en el
+   * historial.
+   *
+   * @param id Identificador de una ausencia que ya existe (el caso de uso lo comprueba antes).
+   * @returns La ausencia con `anulada: true`.
+   */
+  anular(id: string): Promise<Ausencia>
 }
 
 /**
